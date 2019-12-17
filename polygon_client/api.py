@@ -20,7 +20,6 @@ class Polygon:
     _PROBLEM_SAVE_STATEMENT_RESOURCE = 'problem.saveStatementResource'
     _PROBLEMS_LIST = 'problems.list'
     _PROBLEM_CHECKER = 'problem.checker'
-    _PROBLEM_CHECKER = 'problem.checker'
     _PROBLEM_VALIDATOR = 'problem.validator'
     _PROBLEM_INTERACTOR = 'problem.interactor'
     _PROBLEM_FILES = 'problem.files'
@@ -50,7 +49,6 @@ class Polygon:
     _PROBLEM_VIEW_GENERAL_TUTORIAL = 'problem.viewGeneralTutorial'
     _PROBLEM_SAVE_GENERAL_TUTORIAL = 'problem.saveGeneralTutorial'
 
-
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
 
@@ -58,16 +56,16 @@ class Polygon:
         """
         """
         response = self._request_ok_or_raise(self._PROBLEMS_LIST)
-        return [Problem(self, p_json) for p_json in response.result]
+        return [Problem.from_json(self, p_json) for p_json in response.result]
 
     def problem_info(self, problem_id):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_INFO,
-            args={ 'problemId': problem_id },
+            args={'problemId': problem_id},
         )
-        return ProblemInfo(response.result)
+        return ProblemInfo.from_json(response.result)
 
     def problem_update_info(self, problem_id, problem_info):
         """
@@ -78,7 +76,7 @@ class Polygon:
                 'problemId': problem_id,
                 'inputFile': problem_info.input_file,
                 'outputFile': problem_info.output_file,
-                'interactive': problem_info.interactive, # TODO
+                'interactive': problem_info.interactive,  # TODO
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
             },
@@ -90,7 +88,7 @@ class Polygon:
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_TAGS,
-            args={ 'problemId': problem_id },
+            args={'problemId': problem_id},
         )
         return response.result
 
@@ -112,7 +110,7 @@ class Polygon:
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_GENERAL_DESCRIPTION,
-            args={ 'problemId': problem_id },
+            args={'problemId': problem_id},
         )
         return response.result
 
@@ -133,10 +131,10 @@ class Polygon:
         """
         response = self._request_ok_or_raise(
             self._CONTEST_PROBLEMS,
-            args={ 'contestId': contest_id },
+            args={'contestId': contest_id},
         )
         return {
-            name: Problem(self, p_json)
+            name: Problem.from_json(self, p_json)
             for name, p_json in response.result.items()
         }
 
@@ -153,6 +151,7 @@ class Polygon:
 
 class Problem:
     """
+    Object representing Polygon problem
     """
 
     # JSON field names
@@ -166,18 +165,34 @@ class Problem:
     _LATEST_PACKAGE_FIELD = 'latestPackage'
     _MODIFIED_FIELD = 'modified'
 
-    def __init__(self, polygon, problem_json):
+    @classmethod
+    def from_json(cls, polygon, problem_json):
+        return cls(
+            polygon=polygon,
+            problem_id=problem_json.get(Problem._ID_FIELD),
+            owner=problem_json.get(Problem._OWNER_FIELD),
+            name=problem_json.get(Problem._NAME_FIELD),
+            deleted=problem_json.get(Problem._DELETED_FIELD),
+            favorite=problem_json.get(Problem._FAVORITE_FIELD),
+            access_type=problem_json.get(Problem._ACCESS_TYPE_FIELD),
+            revision=problem_json.get(Problem._REVISION_FIELD),
+            latest_package=problem_json.get(Problem._LATEST_PACKAGE_FIELD),
+            modified=problem_json.get(Problem._MODIFIED_FIELD),
+        )
+
+    def __init__(self, polygon, problem_id, owner, name, deleted, favorite, access_type, revision, latest_package,
+                 modified):
         self._polygon = polygon
 
-        self.id = problem_json.get(Problem._ID_FIELD)
-        self.owner = problem_json.get(Problem._OWNER_FIELD)
-        self.name = problem_json.get(Problem._NAME_FIELD)
-        self.deleted = problem_json.get(Problem._DELETED_FIELD)
-        self.favorite = problem_json.get(Problem._FAVORITE_FIELD)
-        self.access_type = problem_json.get(Problem._ACCESS_TYPE_FIELD)
-        self.revision = problem_json.get(Problem._REVISION_FIELD)
-        self.latest_package = problem_json.get(Problem._LATEST_PACKAGE_FIELD)
-        self.modified = problem_json.get(Problem._MODIFIED_FIELD)
+        self.id = problem_id
+        self.owner = owner
+        self.name = name
+        self.deleted = deleted
+        self.favorite = favorite
+        self.access_type = access_type
+        self.revision = revision
+        self.latest_package = latest_package
+        self.modified = modified
 
     def __str__(self):
         return '{}:{}'.format(self.name, self.id)
@@ -204,8 +219,9 @@ class Problem:
 
 class ProblemInfo:
     """
+    Object representing Polygon problem info
     """
-    
+
     # JSON field names
     _INPUT_FILE = 'memoryLimit'
     _OUTPUT_FILE = 'timeLimit'
@@ -213,12 +229,22 @@ class ProblemInfo:
     _TIME_LIMIT = 'outputFile'
     _MEMORY_LIMIT = 'inputFile'
 
-    def __init__(self, problem_info_json):
-        self.input_file = problem_info_json[ProblemInfo._INPUT_FILE]
-        self.output_file = problem_info_json[ProblemInfo._OUTPUT_FILE]
-        self.interactive = problem_info_json[ProblemInfo._INTERACTIVE]
-        self.time_limit = problem_info_json[ProblemInfo._TIME_LIMIT]
-        self.memory_limit = problem_info_json[ProblemInfo._MEMORY_LIMIT]
+    @classmethod
+    def from_json(cls, problem_info_json):
+        return cls(
+            input_file=problem_info_json[ProblemInfo._INPUT_FILE],
+            output_file=problem_info_json[ProblemInfo._OUTPUT_FILE],
+            interactive=problem_info_json[ProblemInfo._INTERACTIVE],
+            time_limit=problem_info_json[ProblemInfo._TIME_LIMIT],
+            memory_limit=problem_info_json[ProblemInfo._MEMORY_LIMIT],
+        )
+
+    def __init__(self, input_file, output_file, interactive, time_limit, memory_limit):
+        self.input_file = input_file
+        self.output_file = output_file
+        self.interactive = interactive
+        self.time_limit = time_limit
+        self.memory_limit = memory_limit
 
 
 class Request:
