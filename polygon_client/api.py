@@ -249,11 +249,11 @@ class ProblemInfo:
     """
 
     # JSON field names
-    _INPUT_FILE = 'memoryLimit'
-    _OUTPUT_FILE = 'timeLimit'
+    _INPUT_FILE = 'inputFile'
+    _OUTPUT_FILE = 'outputFile'
     _INTERACTIVE = 'interactive'
-    _TIME_LIMIT = 'outputFile'
-    _MEMORY_LIMIT = 'inputFile'
+    _TIME_LIMIT = 'timeLimit'
+    _MEMORY_LIMIT = 'memoryLimit'
 
     @classmethod
     def from_json(cls, problem_info_json):
