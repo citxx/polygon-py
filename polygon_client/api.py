@@ -126,6 +126,27 @@ class Polygon:
         )
         return response.result
 
+    def problem_view_general_tutorial(self, problem_id):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_VIEW_GENERAL_TUTORIAL,
+            args={'problemId': problem_id},
+        )
+        return response.result
+
+    def problem_save_general_tutorial(self, problem_id, tutorial):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_GENERAL_TUTORIAL,
+            args={
+                'problemId': problem_id,
+                'tutorial': tutorial,
+            },
+        )
+        return response.result
+
     def contest_problems(self, contest_id):
         """
         """
@@ -203,18 +224,23 @@ class Problem:
     def update_info(self, problem_info):
         return self._polygon.problem_update_info(self.id, problem_info)
 
-    def view_tags(self):
+    def tags(self):
         return self._polygon.problem_view_tags(self.id)
 
     def save_tags(self, tags):
         return self._polygon.problem_save_tags(self.id, tags)
 
-    def view_general_description(self):
+    def general_description(self):
         return self._polygon.problem_view_general_description(self.id)
 
     def save_general_description(self, description):
-        return self._polygon.problem_save_general_description(
-            self.id, description)
+        return self._polygon.problem_save_general_description(self.id, description)
+
+    def general_tutorial(self):
+        return self._polygon.problem_view_general_tutorial(self.id)
+
+    def save_general_tutorial(self, tutorial):
+        return self._polygon.problem_save_general_tutorial(self.id, tutorial)
 
 
 class ProblemInfo:
