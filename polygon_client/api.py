@@ -162,7 +162,7 @@ class Polygon:
     def _request_ok_or_raise(self, method_name, args=None):
         response = self._request(method_name, args=args)
         if response.status != Response.STATUS_OK:
-            raise Exception(response.comment)
+            raise PolygonRequestFailedException(response.comment)
         return response
 
     def _request(self, method_name, args=None):
@@ -346,3 +346,10 @@ class RequestConfig:
         self.api_url = api_url
         self.api_key = api_key
         self.api_secret = api_secret
+
+
+class PolygonRequestFailedException(Exception):
+    """Exception raised when Polygon returns FAILED as request status"""
+
+    def __init__(self, comment):
+        self.comment = comment
