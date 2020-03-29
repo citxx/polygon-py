@@ -287,20 +287,29 @@ class Request:
     def __init__(self, config, method_name, args=None):
         if args is None:
             args = {}
-
+        args = {key: value for key, value in args.items() if value is not None}
+        for key in args:
+            if isinstance(args[key], bool):
+                args[key] = 'true' if args[key] else 'false'
+        self.args = []
+        for key, value in args.items():
+            if isinstance(value, list):
+                for it in value:
+                    self.args.append((key, str(it)))
+            else:
+                self.args.append((key, str(value)))
         self.config = config
         self.method_name = method_name
-        self.args = args
 
     def issue(self):
         """Issues request and returns parsed JSON response"""
 
-        args = dict(self.args)
-        args['apiKey'] = self.config.api_key
-        args['time'] = int(time.time())
-        args['apiSig'] = self.get_api_signature(args, self.config.api_secret)
-        response = requests.get(
-            self.config.api_url + self.method_name, params=args)
+        args = self.args
+        args.append(('apiKey', self.config.api_key))
+        args.append(('time', str(int(time.time()))))
+        args.append(('apiSig', self.get_api_signature(args, self.config.api_secret)))
+        response = requests.post(
+            self.config.api_url + self.method_name, files=args)
         return Response(json.loads(response.text))
 
     def get_api_signature(self, args, api_secret):
@@ -308,7 +317,7 @@ class Request:
             random.choice(string.ascii_lowercase + string.digits)
             for _ in range(6))
 
-        arg_tuples = list(sorted(args.items()))
+        arg_tuples = list(sorted(args))
         args_bit = '&'.join(key + '=' + str(value) for key, value in arg_tuples)
         api_signature_string = '{}/{}?{}#{}'.format(
             rand_bit, self.method_name, args_bit, api_secret)
