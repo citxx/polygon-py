@@ -430,7 +430,7 @@ class Request:
     def issue(self):
         """Issues request and returns parsed JSON response"""
 
-        args = self.args
+        args = list(self.args)
         args.append(('apiKey', self.config.api_key))
         args.append(('time', str(int(time.time()))))
         args.append(('apiSig', self.get_api_signature(args, self.config.api_secret)))
