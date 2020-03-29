@@ -352,6 +352,8 @@ class Response:
 
 class RequestConfig:
     def __init__(self, api_url, api_key, api_secret):
+        if not api_url.endswith('/'):
+            api_url += '/'
         self.api_url = api_url
         self.api_key = api_key
         self.api_secret = api_secret
