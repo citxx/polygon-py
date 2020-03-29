@@ -3,4 +3,8 @@ from .api import (
     Problem,
     ProblemInfo,
     PolygonRequestFailedException,
+    PointsPolicy,
+    FeedbackPolicy,
+    FileType,
+    SolutionTag,
 )

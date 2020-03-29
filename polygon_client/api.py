@@ -4,6 +4,7 @@ import random
 import requests
 import string
 import time
+from enum import Enum, auto
 
 
 class Polygon:
@@ -147,6 +148,107 @@ class Polygon:
         )
         return response.result
 
+    def problem_enable_groups(self, problem_id, testset, enable):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_ENABLE_GROUPS,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'enable': enable,
+            },
+        )
+        return response.result
+
+    def problem_enable_points(self, problem_id, enable):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_ENABLE_POINTS,
+            args={
+                'problemId': problem_id,
+                'enable': enable,
+            },
+        )
+        return response.result
+
+    def problem_save_test(self, problem_id, testset, test_index, test_input, test_group=None, test_points=None,
+                          test_description=None, test_use_in_statements=None, test_input_for_statements=None,
+                          test_output_for_statements=None, verify_input_output_for_statements=None, check_existing=None):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_TEST,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+                'testInput': test_input,
+                'testGroup': test_group,
+                'testPoints': test_points,
+                'testDescription': test_description,
+                'testUseInStatements': test_use_in_statements,
+                'testInputForStatements': test_input_for_statements,
+                'testOutputForStatements': test_output_for_statements,
+                'verifyInputOutputForStatements': verify_input_output_for_statements,
+                'checkExisting': check_existing,
+            }
+        )
+        return response.result
+
+    def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
+                                dependencies=None):
+        if isinstance(dependencies, list):
+            dependencies = ",".join(map(str, dependencies))
+        elif dependencies is not None:
+            dependencies = str(dependencies)
+        if not isinstance(points_policy, PointsPolicy):
+            raise ValueError(
+                "Expected PointsPolicy instance for pointsPolicy argument, but %s found" % type(points_policy))
+        if not isinstance(feedback_policy, FeedbackPolicy):
+            raise ValueError(
+                "Expected FeedbackPolicy instance for feedbackPolicy argument, but %s found" % type(feedback_policy))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_TEST_GROUP,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'group' : group,
+                'pointsPolicy': points_policy,
+                'feedbackPolicy': feedback_policy,
+                'dependencies': dependencies,
+            }
+        )
+        return response.result
+
+    def problem_save_file(self, problem_id, type, name, file, source_type=None):  # TODO add forTypes, stages, assets
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_FILE,
+            args={
+                'problemId': problem_id,
+                'type': type,
+                'name': name,
+                'file': file,
+                'source_type': source_type
+            }
+        )
+        return response.result
+
+    def problem_save_solution(self, problem_id, name, file, source_type, tag, check_existing=None):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_SOLUTION,
+            args={
+                'problemId': problem_id,
+                'name': name,
+                'file': file,
+                'sourceType': source_type,
+                'tag': tag,
+                'checkExisting': check_existing,
+            }
+        )
+        return response.result
+
     def contest_problems(self, contest_id):
         """
         """
@@ -241,6 +343,30 @@ class Problem:
 
     def save_general_tutorial(self, tutorial):
         return self._polygon.problem_save_general_tutorial(self.id, tutorial)
+
+    def enable_groups(self, testset, enable):
+        return self._polygon.problem_enable_groups(self.id, testset, enable)
+
+    def enable_points(self, enable):
+        return self._polygon.problem_enable_points(self.id, enable)
+
+    def save_test(self, testset, test_index, test_input, test_group=None, test_points=None, test_description=None,
+                  test_use_in_statements=None, test_input_for_statements=None, test_output_for_statements=None,
+                  verify_input_output_for_statements=None, check_existing=None):
+        return self._polygon.problem_save_test(self.id, testset, test_index, test_input, test_group, test_points,
+                                               test_description, test_use_in_statements, test_input_for_statements,
+                                               test_output_for_statements, verify_input_output_for_statements,
+                                               check_existing)
+
+    def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None):
+        return self._polygon.problem_save_test_group(self.id, testset, group,
+                                                     points_policy, feedback_policy, dependencies)
+
+    def save_file(self, type, name, file, source_type=None):  # TODO add forTypes, stages, assets
+        return self._polygon.problem_save_file(self.id, type, name, file, source_type)
+
+    def save_solution(self, name, file, source_type, tag, check_existing=None):
+        return self._polygon.problem_save_solution(self.id, name, file, source_type, tag, check_existing)
 
 
 class ProblemInfo:
@@ -364,3 +490,45 @@ class PolygonRequestFailedException(Exception):
 
     def __init__(self, comment):
         self.comment = comment
+
+
+class PointsPolicy(Enum):
+    COMPLETE_GROUP = auto()
+    EACH_TEST = auto()
+
+    def __str__(self):
+        return self.name
+
+
+class FeedbackPolicy(Enum):
+    NONE = auto()
+    POINTS = auto()
+    ICPC = auto()
+    COMPLETE = auto()
+
+    def __str__(self):
+        return self.name
+
+
+class FileType(Enum):
+    RESOURCE = auto()
+    SOURCE = auto()
+    AUX = auto()
+
+    def __str__(self):
+        return self.name
+
+
+class SolutionTag(Enum):
+    MA = auto()  # Main correct solution
+    OK = auto()  # Accepted
+    RJ = auto()  # Rejected, Incorrect
+    TL = auto()  # Time limit exceeded
+    TO = auto()  # Time limit exceeded or accepted
+    WA = auto()  # Wrong answer
+    PE = auto()  # Presentation error
+    ML = auto()  # Memory limit exceeded
+    RE = auto()  # Runtime error
+
+    def __str__(self):
+        return self.name
