@@ -610,7 +610,7 @@ class FileType(Enum):
     AUX = auto()
 
     def __str__(self):
-        return self.name
+        return self.name.lower()
 
 
 class SolutionTag(Enum):
