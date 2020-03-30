@@ -213,10 +213,10 @@ class Polygon:
             dependencies = str(dependencies)
         if not isinstance(points_policy, PointsPolicy):
             raise ValueError(
-                "Expected PointsPolicy instance for pointsPolicy argument, but %s found" % type(points_policy))
+                "Expected PointsPolicy instance for points_policy argument, but %s found" % type(points_policy))
         if not isinstance(feedback_policy, FeedbackPolicy):
             raise ValueError(
-                "Expected FeedbackPolicy instance for feedbackPolicy argument, but %s found" % type(feedback_policy))
+                "Expected FeedbackPolicy instance for feedback_policy argument, but %s found" % type(feedback_policy))
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_TEST_GROUP,
             args={
