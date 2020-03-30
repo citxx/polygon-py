@@ -3,9 +3,12 @@ from .api import (
     Problem,
     ProblemInfo,
     Statement,
+    ResourceAdvancedProperties,
     PolygonRequestFailedException,
     PointsPolicy,
     FeedbackPolicy,
     FileType,
     SolutionTag,
+    Stage,
+    Asset,
 )
