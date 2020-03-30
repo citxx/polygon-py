@@ -399,7 +399,7 @@ class ProblemInfo:
             memory_limit=problem_info_json[ProblemInfo._MEMORY_LIMIT],
         )
 
-    def __init__(self, input_file, output_file, interactive, time_limit, memory_limit):
+    def __init__(self, input_file=None, output_file=None, interactive=None, time_limit=None, memory_limit=None):
         self.input_file = input_file
         self.output_file = output_file
         self.interactive = interactive
