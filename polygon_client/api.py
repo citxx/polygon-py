@@ -53,10 +53,18 @@ class Polygon:
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
 
-    def problems_list(self):
+    def problems_list(self, show_deleted=None, id=None, name=None, owner=None):
         """
         """
-        response = self._request_ok_or_raise(self._PROBLEMS_LIST)
+        response = self._request_ok_or_raise(
+            self._PROBLEMS_LIST,
+            args={
+                'showDeleted': show_deleted,
+                'id' : id,
+                'name': name,
+                'owner': owner,
+            }
+        )
         return [Problem.from_json(self, p_json) for p_json in response.result]
 
     def problem_info(self, problem_id):
