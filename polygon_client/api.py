@@ -156,6 +156,39 @@ class Polygon:
         )
         return response.result
 
+    def problem_statements(self, problem_id):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_STATEMENTS,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return {lang: Statement.from_json(statement_json) for lang, statement_json in response.result.items()}
+
+    def problem_save_statement(self, problem_id, lang, problem_statement):
+        """
+        """
+        if not isinstance(problem_statement, Statement):
+            raise ValueError(
+                "Expected Statement instance for problem_statement argument, but %s found" % type(problem_statement))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_STATEMENT,
+            args={
+                'problemId': problem_id,
+                'lang': lang,
+                'encoding': problem_statement.encoding,
+                'name': problem_statement.name,
+                'legend': problem_statement.legend,
+                'input': problem_statement.input,
+                'output': problem_statement.output,
+                'notes': problem_statement.notes,
+                'tutorial': problem_statement.tutorial,
+            },
+        )
+        return response.result
+
     def problem_enable_groups(self, problem_id, testset, enable):
         """
         """
@@ -352,6 +385,12 @@ class Problem:
     def save_general_tutorial(self, tutorial):
         return self._polygon.problem_save_general_tutorial(self.id, tutorial)
 
+    def statements(self):
+        return self._polygon.problem_statements(self.id)
+
+    def save_statement(self, lang, problem_statement):
+        return self._polygon.problem_save_statement(self.id, lang, problem_statement)
+
     def enable_groups(self, testset, enable):
         return self._polygon.problem_enable_groups(self.id, testset, enable)
 
@@ -405,6 +444,40 @@ class ProblemInfo:
         self.interactive = interactive
         self.time_limit = time_limit
         self.memory_limit = memory_limit
+
+
+class Statement:
+    """
+    Object: representing Polygon problem statement
+    """
+    _ENCODING = "encoding"
+    _NAME = "name"
+    _LEGEND = "legend"
+    _INPUT = "input"
+    _OUTPUT = "output"
+    _NOTES = "notes"
+    _TUTORIAL = "tutorial"
+
+    @classmethod
+    def from_json(cls, statement_json):
+        return cls(
+            encoding=statement_json[Statement._ENCODING],
+            name=statement_json[Statement._NAME],
+            legend=statement_json[Statement._LEGEND],
+            input=statement_json[Statement._INPUT],
+            output=statement_json[Statement._OUTPUT],
+            notes=statement_json[Statement._NOTES],
+            tutorial=statement_json[Statement._TUTORIAL],
+        )
+
+    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, notes=None, tutorial=None):
+        self.encoding = encoding
+        self.name = name
+        self.legend = legend
+        self.input = input
+        self.output = output
+        self.notes = notes
+        self.tutorial = tutorial
 
 
 class Request:
