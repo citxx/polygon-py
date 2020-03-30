@@ -290,6 +290,16 @@ class Polygon:
         )
         return response.result
 
+    def problem_set_checker(self, problem_id, checker):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_CHECKER,
+            args={
+                'problemId': problem_id,
+                'checker': checker,
+            },
+        )
+        return response.result
+
     def contest_problems(self, contest_id):
         """
         """
@@ -414,6 +424,9 @@ class Problem:
 
     def save_solution(self, name, file, source_type, tag, check_existing=None):
         return self._polygon.problem_save_solution(self.id, name, file, source_type, tag, check_existing)
+
+    def set_checker(self, checker):
+        return self._polygon.problem_set_checker(self.id, checker)
 
 
 class ProblemInfo:
