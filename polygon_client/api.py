@@ -263,7 +263,11 @@ class Polygon:
         )
         return response.result
 
-    def problem_save_file(self, problem_id, type, name, file, source_type=None):  # TODO add forTypes, stages, assets
+    def problem_save_file(self, problem_id, type, name, file, source_type=None, resource_advanced_properties=None):
+        stages = None if resource_advanced_properties.stages is None else \
+            ';'.join(map(str, resource_advanced_properties.stages))
+        assets = None if resource_advanced_properties.assets is None else \
+            ';'.join(map(str, resource_advanced_properties.assets))
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_FILE,
             args={
@@ -271,7 +275,10 @@ class Polygon:
                 'type': type,
                 'name': name,
                 'file': file,
-                'source_type': source_type
+                'sourceType': source_type,
+                'forTypes': resource_advanced_properties.for_types,
+                'stages': stages,
+                'assets': assets,
             }
         )
         return response.result
@@ -419,8 +426,8 @@ class Problem:
         return self._polygon.problem_save_test_group(self.id, testset, group,
                                                      points_policy, feedback_policy, dependencies)
 
-    def save_file(self, type, name, file, source_type=None):  # TODO add forTypes, stages, assets
-        return self._polygon.problem_save_file(self.id, type, name, file, source_type)
+    def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None):
+        return self._polygon.problem_save_file(self.id, type, name, file, source_type, resource_advanced_properties)
 
     def save_solution(self, name, file, source_type, tag, check_existing=None):
         return self._polygon.problem_save_solution(self.id, name, file, source_type, tag, check_existing)
@@ -491,6 +498,33 @@ class Statement:
         self.output = output
         self.notes = notes
         self.tutorial = tutorial
+
+
+class ResourceAdvancedProperties:
+    """
+    """
+    _FOR_TYPES = "forTypes"
+    _MAIN = "main"
+    _STAGES = "stages"
+    _ASSETS = "assets"
+
+    @classmethod
+    def from_json(cls, resource_advanced_properties):
+        return cls(
+            for_types=resource_advanced_properties[ResourceAdvancedProperties._FOR_TYPES],
+            main=resource_advanced_properties[ResourceAdvancedProperties._MAIN],
+            stages=resource_advanced_properties[ResourceAdvancedProperties._STAGES],
+            assets=resource_advanced_properties[ResourceAdvancedProperties._ASSETS],
+        )
+
+    def __init__(self, for_types=None, main=None, stages=None, assets=None):
+        self.for_types = for_types
+        self.main = main
+        self.stages = stages
+        self.assets = assets
+
+
+ResourceAdvancedProperties.DELETE = ResourceAdvancedProperties(for_types="")
 
 
 class Request:
@@ -623,6 +657,24 @@ class SolutionTag(Enum):
     PE = auto()  # Presentation error
     ML = auto()  # Memory limit exceeded
     RE = auto()  # Runtime error
+
+    def __str__(self):
+        return self.name
+
+
+class Asset(Enum):
+    VALIDATOR = auto()
+    INTERACTOR = auto()
+    CHECKER = auto()
+    SOLUTION = auto()
+
+    def __str__(self):
+        return self.name
+
+
+class Stage(Enum):
+    COMPILE = auto()
+    RUN = auto()
 
     def __str__(self):
         return self.name
