@@ -513,8 +513,8 @@ class ResourceAdvancedProperties:
         return cls(
             for_types=resource_advanced_properties[ResourceAdvancedProperties._FOR_TYPES],
             main=resource_advanced_properties[ResourceAdvancedProperties._MAIN],
-            stages=resource_advanced_properties[ResourceAdvancedProperties._STAGES],
-            assets=resource_advanced_properties[ResourceAdvancedProperties._ASSETS],
+            stages=[Stage[stage] for stage in resource_advanced_properties[ResourceAdvancedProperties._STAGES]],
+            assets=[Asset[asset] for asset in resource_advanced_properties[ResourceAdvancedProperties._ASSETS]],
         )
 
     def __init__(self, for_types=None, main=None, stages=None, assets=None):
