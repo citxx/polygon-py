@@ -60,7 +60,7 @@ class Polygon:
             self._PROBLEMS_LIST,
             args={
                 'showDeleted': show_deleted,
-                'id' : id,
+                'id': id,
                 'name': name,
                 'owner': owner,
             }
@@ -222,7 +222,7 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'testset': testset,
-                'group' : group,
+                'group': group,
                 'pointsPolicy': points_policy,
                 'feedbackPolicy': feedback_policy,
                 'dependencies': dependencies,
