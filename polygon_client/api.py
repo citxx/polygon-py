@@ -238,6 +238,16 @@ class Polygon:
         )
         return response.result
 
+    def problem_tests(self, problem_id, testset):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_TESTS,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+            }
+        )
+        return [Test.from_json(self, problem_id, testset, js) for js in response.result]
+
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
                                 dependencies=None):
         if isinstance(dependencies, list):
@@ -432,6 +442,9 @@ class Problem:
                                                test_output_for_statements, verify_input_output_for_statements,
                                                check_existing)
 
+    def tests(self, testset):
+        return self._polygon.problem_tests(self.id, testset)
+
     def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None):
         return self._polygon.problem_save_test_group(self.id, testset, group,
                                                      points_policy, feedback_policy, dependencies)
@@ -477,6 +490,100 @@ class ProblemInfo:
         self.interactive = interactive
         self.time_limit = time_limit
         self.memory_limit = memory_limit
+
+
+class Test:
+    _INDEX = "index"
+    _MANUAL = "manual"
+    _INPUT = "input"
+    _DESCRIPTION = "description"
+    _USE_IN_STATEMENTS = "useInStatements"
+    _SCRIPT_LINE = "scriptLine"
+    _GROUP = "group"
+    _POINTS = "points"
+    _INPUT_FOR_STATEMENTS = "inputForStatements"
+    _OUTPUT_FOR_STATEMENTS = "outputForStatements"
+    _VERIFY_INPUT_OUTPUT_FOR_STATEMENTS = "verifyInputOutputForStatements"
+
+    @classmethod
+    def from_json(cls, polygon, problem_id, testset, test_json):
+        if test_json['manual']:
+            return ManualTest.from_json(polygon, problem_id, testset, test_json)
+        else:
+            return GeneratedTest.from_json(polygon, problem_id, testset, test_json)
+
+    def __init__(self, polygon, problem_id, testset, index, group, points, description, use_in_statements,
+                 input_for_statements, output_for_statements, verify_input_output_for_statements):
+        self._polygon = polygon
+        self._problem_id = problem_id
+        self.testset = testset
+        self.index = index
+        self.group = group
+        self.points = points
+        self.description = description
+        self.use_in_statements = use_in_statements
+        self.input_for_statements = input_for_statements
+        self.output_for_statements = output_for_statements
+        self.verify_input_output_for_statements = verify_input_output_for_statements
+
+
+class ManualTest(Test):
+
+    @classmethod
+    def from_json(cls, polygon, problem_id, testset, test_json):
+        verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
+        return cls(
+            polygon=polygon,
+            problem_id=problem_id,
+            testset=testset,
+            index=int(test_json[Test._INDEX]),
+            input=test_json[Test._INPUT],
+            group=test_json.get(Test._GROUP, ""),
+            points=int(test_json.get(Test._POINTS, "0")),
+            description=test_json.get(Test._DESCRIPTION, None),
+            use_in_statements=test_json[Test._USE_IN_STATEMENTS],
+            input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
+            output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
+            verify_input_output_for_statements=None if verify is None else (verify == 'true'),
+        )
+
+    def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
+                 use_in_statements=None, input_for_statements=None, output_for_statements=None, verify_input_output_for_statements=None):
+        super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
+                         input_for_statements, output_for_statements, verify_input_output_for_statements)
+        self.input = input
+
+    def save(self):
+        return self._polygon.problem_save_test(self._problem_id, self.testset, self.index, self.input,
+                                               self.group, self.points, self.description, self.use_in_statements,
+                                               self.input_for_statements, self.output_for_statements,
+                                               self.verify_input_output_for_statements)
+
+
+class GeneratedTest(Test):
+    @classmethod
+    def from_json(cls, polygon, problem_id, testset, test_json):
+        verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
+        return cls(
+            polygon=polygon,
+            problem_id=problem_id,
+            testset=testset,
+            index=int(test_json[Test._INDEX]),
+            group=test_json.get(Test._GROUP, ""),
+            points=int(test_json.get(Test._POINTS, "0")),
+            description=test_json.get(Test._DESCRIPTION, None),
+            use_in_statements=test_json[Test._USE_IN_STATEMENTS],
+            script_line=test_json[Test._SCRIPT_LINE],
+            input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
+            output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
+            verify_input_output_for_statements=None if verify is None else (verify == 'true'),
+        )
+
+    def __init__(self, polygon, problem_id, testset, index, group, points, description, use_in_statements, script_line,
+                 input_for_statements, output_for_statements, verify_input_output_for_statements):
+        super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
+                         input_for_statements, output_for_statements, verify_input_output_for_statements)
+        self.script_line = script_line
 
 
 class TestGroup:
