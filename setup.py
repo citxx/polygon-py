@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="polygon_client",
+    name="polygon_api",
     version="1.0a6",
     author="Artem Tabolin",
     author_email="artemtab@gmail.com",

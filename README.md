@@ -1,4 +1,4 @@
-# Polygon client
+# Polygon API wrapper
 
 Status: work in progress. Doesn't yet cover the whole API.
 
