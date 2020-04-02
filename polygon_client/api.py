@@ -263,6 +263,16 @@ class Polygon:
         )
         return response.result
 
+    def problem_view_test_group(self, testset, group):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_VIEW_TEST_GROUP,
+            args={
+                'testset': testset,
+                'group': group,
+            },
+        )
+        return TestGroup.from_json(response.result)
+
     def problem_save_file(self, problem_id, type, name, file, source_type=None, resource_advanced_properties=None):
         stages = None if resource_advanced_properties.stages is None else \
             ';'.join(map(str, resource_advanced_properties.stages))
@@ -426,6 +436,9 @@ class Problem:
         return self._polygon.problem_save_test_group(self.id, testset, group,
                                                      points_policy, feedback_policy, dependencies)
 
+    def view_test_group(self, testset, group):
+        return self._polygon.problem_view_test_group(testset, group)
+
     def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type, resource_advanced_properties)
 
@@ -464,6 +477,36 @@ class ProblemInfo:
         self.interactive = interactive
         self.time_limit = time_limit
         self.memory_limit = memory_limit
+
+
+class TestGroup:
+    """
+    """
+    _NAME = "name"
+    _POINTS_POLICY = "pointsPolicy"
+    _FEEDBACK_POLICY = "feedbackPolicy"
+    _DEPENDENCIES = "dependencies"
+
+    @classmethod
+    def from_json(cls, test_group_json):
+        return cls(
+            name=test_group_json[TestGroup._NAME],
+            points_policy=PointsPolicy[test_group_json[TestGroup._POINTS_POLICY]],
+            feedback_policy=FeedbackPolicy[test_group_json[TestGroup._FEEDBACK_POLICY]],
+            dependencies=test_group_json[TestGroup._DEPENDENCIES],
+        )
+
+    def __init__(self, name, points_policy=None, feedback_policy=None, dependencies=None):
+        self.name = name
+        if points_policy is not None and not isinstance(points_policy, PointsPolicy):
+            raise TypeError(
+                "Expected PointsPolicy instance for points_policy argument, but %s found" % type(points_policy))
+        if feedback_policy is not None and not isinstance(feedback_policy, FeedbackPolicy):
+            raise TypeError(
+                "Expected FeedbackPolicy instance for feedback_policy argument, but %s found" % type(feedback_policy))
+        self.points_policy = points_policy
+        self.feedback_policy = feedback_policy
+        self.dependencies = dependencies
 
 
 class Statement:
