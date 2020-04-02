@@ -254,10 +254,10 @@ class Polygon:
             dependencies = ",".join(map(str, dependencies))
         elif dependencies is not None:
             dependencies = str(dependencies)
-        if not isinstance(points_policy, PointsPolicy):
+        if points_policy is not None and not isinstance(points_policy, PointsPolicy):
             raise ValueError(
                 "Expected PointsPolicy instance for points_policy argument, but %s found" % type(points_policy))
-        if not isinstance(feedback_policy, FeedbackPolicy):
+        if feedback_policy is not None and not isinstance(feedback_policy, FeedbackPolicy):
             raise ValueError(
                 "Expected FeedbackPolicy instance for feedback_policy argument, but %s found" % type(feedback_policy))
         response = self._request_ok_or_raise(
