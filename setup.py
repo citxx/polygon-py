@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="polygon_client",
-    version="1.0a5",
+    version="1.0a6",
     author="Artem Tabolin",
     author_email="artemtab@gmail.com",
     description="Python wrapper for Polygon API (polygon.codeforces.com)",
