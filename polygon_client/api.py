@@ -4,7 +4,7 @@ import random
 import requests
 import string
 import time
-from enum import Enum, auto
+from enum import Enum
 
 
 class Polygon:
@@ -771,60 +771,60 @@ class PolygonRequestFailedException(Exception):
 
 
 class PointsPolicy(Enum):
-    COMPLETE_GROUP = auto()
-    EACH_TEST = auto()
+    COMPLETE_GROUP = 0
+    EACH_TEST = 1
 
     def __str__(self):
         return self.name
 
 
 class FeedbackPolicy(Enum):
-    NONE = auto()
-    POINTS = auto()
-    ICPC = auto()
-    COMPLETE = auto()
+    NONE = 0
+    POINTS = 1
+    ICPC = 2
+    COMPLETE = 3
 
     def __str__(self):
         return self.name
 
 
 class FileType(Enum):
-    RESOURCE = auto()
-    SOURCE = auto()
-    AUX = auto()
+    RESOURCE = 0
+    SOURCE = 1
+    AUX = 2
 
     def __str__(self):
         return self.name.lower()
 
 
 class SolutionTag(Enum):
-    MA = auto()  # Main correct solution
-    OK = auto()  # Accepted
-    RJ = auto()  # Rejected, Incorrect
-    TL = auto()  # Time limit exceeded
-    TO = auto()  # Time limit exceeded or accepted
-    WA = auto()  # Wrong answer
-    PE = auto()  # Presentation error
-    ML = auto()  # Memory limit exceeded
-    RE = auto()  # Runtime error
+    MA = 0  # Main correct solution
+    OK = 1  # Accepted
+    RJ = 2  # Rejected, Incorrect
+    TL = 3  # Time limit exceeded
+    TO = 4  # Time limit exceeded or accepted
+    WA = 5  # Wrong answer
+    PE = 6  # Presentation error
+    ML = 7  # Memory limit exceeded
+    RE = 8  # Runtime error
 
     def __str__(self):
         return self.name
 
 
 class Asset(Enum):
-    VALIDATOR = auto()
-    INTERACTOR = auto()
-    CHECKER = auto()
-    SOLUTION = auto()
+    VALIDATOR = 0
+    INTERACTOR = 1
+    CHECKER = 2
+    SOLUTION = 3
 
     def __str__(self):
         return self.name
 
 
 class Stage(Enum):
-    COMPILE = auto()
-    RUN = auto()
+    COMPILE = 0
+    RUN = 1
 
     def __str__(self):
         return self.name
