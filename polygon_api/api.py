@@ -284,9 +284,9 @@ class Polygon:
         return TestGroup.from_json(response.result)
 
     def problem_save_file(self, problem_id, type, name, file, source_type=None, resource_advanced_properties=None):
-        stages = None if resource_advanced_properties.stages is None else \
+        stages = None if resource_advanced_properties is None or resource_advanced_properties.stages is None else \
             ';'.join(map(str, resource_advanced_properties.stages))
-        assets = None if resource_advanced_properties.assets is None else \
+        assets = None if resource_advanced_properties is None or resource_advanced_properties.assets is None else \
             ';'.join(map(str, resource_advanced_properties.assets))
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_FILE,
@@ -296,7 +296,7 @@ class Polygon:
                 'name': name,
                 'file': file,
                 'sourceType': source_type,
-                'forTypes': resource_advanced_properties.for_types,
+                'forTypes': None if resource_advanced_properties is None else resource_advanced_properties.for_types,
                 'stages': stages,
                 'assets': assets,
             }
