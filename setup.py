@@ -3,9 +3,10 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+
 setuptools.setup(
     name="polygon_api",
-    version="1.0a6",
+    version="1.0a7",
     author="Artem Tabolin",
     author_email="artemtab@gmail.com",
     description="Python wrapper for Polygon API (polygon.codeforces.com)",
