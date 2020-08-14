@@ -183,6 +183,7 @@ class Polygon:
                 'legend': problem_statement.legend,
                 'input': problem_statement.input,
                 'output': problem_statement.output,
+                'scoring': problem_statement.scoring,
                 'notes': problem_statement.notes,
                 'tutorial': problem_statement.tutorial,
             },
@@ -625,6 +626,7 @@ class Statement:
     _LEGEND = "legend"
     _INPUT = "input"
     _OUTPUT = "output"
+    _SCORING = "scoring"
     _NOTES = "notes"
     _TUTORIAL = "tutorial"
 
@@ -636,16 +638,18 @@ class Statement:
             legend=statement_json[Statement._LEGEND],
             input=statement_json[Statement._INPUT],
             output=statement_json[Statement._OUTPUT],
+            scoring=statement_json[Statement._SCORING],
             notes=statement_json[Statement._NOTES],
             tutorial=statement_json[Statement._TUTORIAL],
         )
 
-    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, notes=None, tutorial=None):
+    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, notes=None, tutorial=None):
         self.encoding = encoding
         self.name = name
         self.legend = legend
         self.input = input
         self.output = output
+        self.scoring = scoring
         self.notes = notes
         self.tutorial = tutorial
 
