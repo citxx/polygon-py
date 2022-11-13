@@ -190,6 +190,27 @@ class Polygon:
         )
         return response.result
 
+    def problem_statement_resources(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_STATEMENT_RESOURCES,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return response.result
+
+    def problem_save_statement_resource(self, problem_id, name, file, check_existing=None):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_STATEMENT_RESOURCE,
+            args={
+                'problemId': problem_id,
+                'name': name,
+                'file': file,
+                'checkExisting': check_existing,
+            },
+        )
+        return response.result
+
     def problem_enable_groups(self, problem_id, testset, enable):
         """
         """
@@ -428,6 +449,12 @@ class Problem:
 
     def save_statement(self, lang, problem_statement):
         return self._polygon.problem_save_statement(self.id, lang, problem_statement)
+
+    def statement_resources(self):
+        return self._polygon.problem_statement_resources(self.id)
+
+    def save_statement_resource(self, name, file, check_existing=None):
+        return self._polygon.problem_save_statement_resource(self.id, name, file, check_existing)
 
     def enable_groups(self, testset, enable):
         return self._polygon.problem_enable_groups(self.id, testset, enable)
