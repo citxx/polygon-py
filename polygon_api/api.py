@@ -238,7 +238,8 @@ class Polygon:
 
     def problem_save_test(self, problem_id, testset, test_index, test_input, test_group=None, test_points=None,
                           test_description=None, test_use_in_statements=None, test_input_for_statements=None,
-                          test_output_for_statements=None, verify_input_output_for_statements=None, check_existing=None):
+                          test_output_for_statements=None, verify_input_output_for_statements=None,
+                          check_existing=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -588,7 +589,8 @@ class ManualTest(Test):
         )
 
     def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
-                 use_in_statements=None, input_for_statements=None, output_for_statements=None, verify_input_output_for_statements=None):
+                 use_in_statements=None, input_for_statements=None, output_for_statements=None,
+                 verify_input_output_for_statements=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
                          input_for_statements, output_for_statements, verify_input_output_for_statements)
         self.input = input
@@ -682,7 +684,8 @@ class Statement:
             tutorial=statement_json[Statement._TUTORIAL],
         )
 
-    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, notes=None, tutorial=None):
+    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, notes=None,
+                 tutorial=None):
         self.encoding = encoding
         self.name = name
         self.legend = legend
