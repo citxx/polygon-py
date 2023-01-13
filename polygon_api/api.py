@@ -239,6 +239,15 @@ class Polygon:
         )
         return response.result
 
+    def problem_solutions(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SOLUTIONS,
+            args={
+                'problemId': problem_id,
+            }
+        )
+        return [Solution.from_json(js) for js in response.result]
+
     def problem_tests(self, problem_id, testset):
         response = self._request_ok_or_raise(
             self._PROBLEM_TESTS,
@@ -462,6 +471,9 @@ class Problem:
     def set_checker(self, checker):
         return self._polygon.problem_set_checker(self.id, checker)
 
+    def solutions(self):
+        return self._polygon.problem_solutions(self.id)
+
 
 class ProblemInfo:
     """
@@ -652,6 +664,34 @@ class Statement:
         self.scoring = scoring
         self.notes = notes
         self.tutorial = tutorial
+
+
+class Solution:
+    """
+    Object: representing Polygon problem solution
+    """
+    _NAME = "name"
+    _MODIFICATION_TIME_SECONDS = "modificationTimeSeconds"
+    _LENGTH = "length"
+    _SOURCE_TYPE = "sourceType"
+    _TAG = "tag"
+
+    @classmethod
+    def from_json(cls, solution_json):
+        return cls(
+            name=solution_json[Solution._NAME],
+            modification_time_seconds=solution_json[Solution._MODIFICATION_TIME_SECONDS],
+            length=solution_json[Solution._LENGTH],
+            source_type=solution_json[Solution._SOURCE_TYPE],
+            tag=SolutionTag[solution_json[Solution._TAG]]
+        )
+
+    def __init__(self, name, modification_time_seconds, length, source_type, tag):
+        self.name = name
+        self.modification_time_seconds = modification_time_seconds
+        self.length = length
+        self.source_type = source_type
+        self.tag = tag
 
 
 class ResourceAdvancedProperties:
