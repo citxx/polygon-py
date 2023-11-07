@@ -277,10 +277,7 @@ class Polygon:
                 'problemId': problem_id,
             }
         )
-        resourceFiles = [File.from_json(js) for js in response.result['resourceFiles']]
-        sourceFiles = [File.from_json(js) for js in response.result['sourceFiles']]
-        auxFiles = [File.from_json(js) for js in response.result['auxFiles']]
-        return {'resourceFiles': resourceFiles, 'sourceFiles': sourceFiles, 'auxFiles': auxFiles}
+        return {type: [File.from_json(js) for js in response.result[str(type) + 'Files']] for type in FileType}
 
     def problem_tests(self, problem_id, testset):
         response = self._request_ok_or_raise(
@@ -326,6 +323,17 @@ class Polygon:
             },
         )
         return TestGroup.from_json(response.result)
+
+    def problem_view_file(self, problem_id, type, name):
+        response = self._request_raw(
+            self._PROBLEM_VIEW_FILE,
+            args={
+                'problemId': problem_id,
+                'type': type,
+                'name': name
+            }
+        )
+        return response
 
     def problem_save_file(self, problem_id, type, name, file, source_type=None, resource_advanced_properties=None):
         stages = None if resource_advanced_properties is None or resource_advanced_properties.stages is None else \
@@ -389,11 +397,31 @@ class Polygon:
         )
         return response.result
 
+    def problem_set_validator(self, problem_id, validator):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_VALIDATOR,
+            args={
+                'problemId': problem_id,
+                'validator': validator,
+            },
+        )
+        return response.result
+
     def problem_interactor(self, problem_id):
         response = self._request_ok_or_raise(
             self._PROBLEM_INTERACTOR,
             args={
                 'problemId': problem_id,
+            },
+        )
+        return response.result
+
+    def problem_set_interactor(self, problem_id, interactor):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_INTERACTOR,
+            args={
+                'problemId': problem_id,
+                'interactor': interactor,
             },
         )
         return response.result
@@ -419,6 +447,10 @@ class Polygon:
     def _request(self, method_name, args=None):
         request = Request(self.request_config, method_name, args)
         return request.issue()
+
+    def _request_raw(self, method_name, args=None):
+        request = Request(self.request_config, method_name, args)
+        return request.issue_raw()
 
 
 class Problem:
@@ -529,6 +561,9 @@ class Problem:
     def view_test_group(self, testset, group):
         return self._polygon.problem_view_test_group(testset, group)
 
+    def view_file(self, type, name):
+        return self._polygon.problem_view_file(self.id, type, name)
+
     def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type, resource_advanced_properties)
 
@@ -544,8 +579,14 @@ class Problem:
     def validator(self):
         return self._polygon.problem_validator(self.id)
 
+    def set_validator(self, validator):
+        return self._polygon.problem_set_validator(self.id, validator)
+
     def interactor(self):
         return self._polygon.problem_interactor(self.id)
+
+    def set_interactor(self, interactor):
+        return self._polygon.problem_set_interactor(self.id, interactor)
 
     def solutions(self):
         return self._polygon.problem_solutions(self.id)
@@ -554,13 +595,13 @@ class Problem:
         return self._polygon.problem_files(self.id)
 
     def files_resource(self):
-        return self.files()['resourceFiles']
+        return self.files()[FileType.RESOURCE]
 
     def files_source(self):
-        return self.files()['sourceFiles']
+        return self.files()[FileType.SOURCE]
 
     def files_aux(self):
-        return self.files()['auxFiles']
+        return self.files()[FileType.AUX]
 
 
 class ProblemInfo:
@@ -878,6 +919,17 @@ class Request:
         response = requests.post(
             self.config.api_url + self.method_name, files=args)
         return Response(json.loads(response.text))
+
+    def issue_raw(self):
+        """Issues request and returns raw response (useful e.g. for files)"""
+
+        args = list(self.args)
+        args.append(('apiKey', self.config.api_key))
+        args.append(('time', str(int(time.time()))))
+        args.append(('apiSig', self.get_api_signature(args, self.config.api_secret)))
+        response = requests.post(
+            self.config.api_url + self.method_name, files=args)
+        return response.text
 
     def get_api_signature(self, args, api_secret):
         rand_bit = ''.join(
