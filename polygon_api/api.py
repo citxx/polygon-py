@@ -190,6 +190,27 @@ class Polygon:
         )
         return response.result
 
+    def problem_statement_resources(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_STATEMENT_RESOURCES,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return response.result
+
+    def problem_save_statement_resource(self, problem_id, name, file, check_existing=None):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_STATEMENT_RESOURCE,
+            args={
+                'problemId': problem_id,
+                'name': name,
+                'file': file,
+                'checkExisting': check_existing,
+            },
+        )
+        return response.result
+
     def problem_enable_groups(self, problem_id, testset, enable):
         """
         """
@@ -217,7 +238,8 @@ class Polygon:
 
     def problem_save_test(self, problem_id, testset, test_index, test_input, test_group=None, test_points=None,
                           test_description=None, test_use_in_statements=None, test_input_for_statements=None,
-                          test_output_for_statements=None, verify_input_output_for_statements=None, check_existing=None):
+                          test_output_for_statements=None, verify_input_output_for_statements=None,
+                          check_existing=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -477,6 +499,12 @@ class Problem:
     def save_statement(self, lang, problem_statement):
         return self._polygon.problem_save_statement(self.id, lang, problem_statement)
 
+    def statement_resources(self):
+        return self._polygon.problem_statement_resources(self.id)
+
+    def save_statement_resource(self, name, file, check_existing=None):
+        return self._polygon.problem_save_statement_resource(self.id, name, file, check_existing)
+
     def enable_groups(self, testset, enable):
         return self._polygon.problem_enable_groups(self.id, testset, enable)
 
@@ -621,7 +649,8 @@ class ManualTest(Test):
         )
 
     def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
-                 use_in_statements=None, input_for_statements=None, output_for_statements=None, verify_input_output_for_statements=None):
+                 use_in_statements=None, input_for_statements=None, output_for_statements=None,
+                 verify_input_output_for_statements=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
                          input_for_statements, output_for_statements, verify_input_output_for_statements)
         self.input = input
@@ -715,7 +744,8 @@ class Statement:
             tutorial=statement_json[Statement._TUTORIAL],
         )
 
-    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, notes=None, tutorial=None):
+    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, notes=None,
+                 tutorial=None):
         self.encoding = encoding
         self.name = name
         self.legend = legend
