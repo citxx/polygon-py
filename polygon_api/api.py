@@ -270,6 +270,18 @@ class Polygon:
         )
         return [Solution.from_json(js) for js in response.result]
 
+    def problem_files(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_FILES,
+            args={
+                'problemId': problem_id,
+            }
+        )
+        resourceFiles = [File.from_json(js) for js in response.result['resourceFiles']]
+        sourceFiles = [File.from_json(js) for js in response.result['sourceFiles']]
+        auxFiles = [File.from_json(js) for js in response.result['auxFiles']]
+        return {'resourceFiles': resourceFiles, 'sourceFiles': sourceFiles, 'auxFiles': auxFiles}
+
     def problem_tests(self, problem_id, testset):
         response = self._request_ok_or_raise(
             self._PROBLEM_TESTS,
@@ -349,12 +361,39 @@ class Polygon:
         )
         return response.result
 
+    def problem_checker(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_CHECKER,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return response.result
+
     def problem_set_checker(self, problem_id, checker):
         response = self._request_ok_or_raise(
             self._PROBLEM_SET_CHECKER,
             args={
                 'problemId': problem_id,
                 'checker': checker,
+            },
+        )
+        return response.result
+
+    def problem_validator(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_VALIDATOR,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return response.result
+
+    def problem_interactor(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_INTERACTOR,
+            args={
+                'problemId': problem_id,
             },
         )
         return response.result
@@ -496,11 +535,32 @@ class Problem:
     def save_solution(self, name, file, source_type, tag, check_existing=None):
         return self._polygon.problem_save_solution(self.id, name, file, source_type, tag, check_existing)
 
+    def checker(self):
+        return self._polygon.problem_checker(self.id)
+
     def set_checker(self, checker):
         return self._polygon.problem_set_checker(self.id, checker)
 
+    def validator(self):
+        return self._polygon.problem_validator(self.id)
+
+    def interactor(self):
+        return self._polygon.problem_interactor(self.id)
+
     def solutions(self):
         return self._polygon.problem_solutions(self.id)
+
+    def files(self):
+        return self._polygon.problem_files(self.id)
+
+    def files_resource(self):
+        return self.files()['resourceFiles']
+
+    def files_source(self):
+        return self.files()['sourceFiles']
+
+    def files_aux(self):
+        return self.files()['auxFiles']
 
 
 class ProblemInfo:
@@ -722,6 +782,35 @@ class Solution:
         self.length = length
         self.source_type = source_type
         self.tag = tag
+
+
+class File:
+    """
+    Object: representing Polygon file (resource, source, or aux, not solutions)
+    """
+    _NAME = "name"
+    _MODIFICATION_TIME_SECONDS = "modificationTimeSeconds"
+    _LENGTH = "length"
+    _SOURCE_TYPE = "sourceType"
+    _RESOURCE_ADVANCED_PROPERTIES = "resourceAdvancedProperties"
+
+    @classmethod
+    def from_json(cls, file_json):
+        return cls(
+            name=file_json[File._NAME],
+            modification_time_seconds=file_json[File._MODIFICATION_TIME_SECONDS],
+            length=file_json[File._LENGTH],
+            source_type=file_json.get(File._SOURCE_TYPE, None),
+            resource_advanced_properties=ResourceAdvancedProperties.from_json(file_json[File._RESOURCE_ADVANCED_PROPERTIES])
+                                                         if File._RESOURCE_ADVANCED_PROPERTIES in file_json.keys() else None
+        )
+
+    def __init__(self, name, modification_time_seconds, length, source_type, resource_advanced_properties):
+        self.name = name
+        self.modification_time_seconds = modification_time_seconds
+        self.length = length
+        self.source_type = source_type
+        self.resource_advanced_properties = resource_advanced_properties
 
 
 class ResourceAdvancedProperties:
