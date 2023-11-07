@@ -769,6 +769,7 @@ class Statement:
     _INPUT = "input"
     _OUTPUT = "output"
     _SCORING = "scoring"
+    _INTERACTION = "interaction"
     _NOTES = "notes"
     _TUTORIAL = "tutorial"
 
@@ -780,19 +781,21 @@ class Statement:
             legend=statement_json[Statement._LEGEND],
             input=statement_json[Statement._INPUT],
             output=statement_json[Statement._OUTPUT],
-            scoring=statement_json[Statement._SCORING],
+            scoring=statement_json.get(Statement._SCORING, None),
+            interaction=statement_json.get(Statement._INTERACTION, None),
             notes=statement_json[Statement._NOTES],
             tutorial=statement_json[Statement._TUTORIAL],
         )
 
-    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, notes=None,
-                 tutorial=None):
+    def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, interaction=None,
+                 notes=None, tutorial=None):
         self.encoding = encoding
         self.name = name
         self.legend = legend
         self.input = input
         self.output = output
         self.scoring = scoring
+        self.interaction = interaction
         self.notes = notes
         self.tutorial = tutorial
 
