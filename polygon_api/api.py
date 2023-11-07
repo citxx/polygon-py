@@ -184,6 +184,7 @@ class Polygon:
                 'input': problem_statement.input,
                 'output': problem_statement.output,
                 'scoring': problem_statement.scoring,
+                'interaction': problem_statement.interaction,
                 'notes': problem_statement.notes,
                 'tutorial': problem_statement.tutorial,
             },
