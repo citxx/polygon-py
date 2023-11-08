@@ -896,6 +896,19 @@ class Request:
     >>> problems = response["result"]
     """
 
+    @staticmethod
+    def _encoded_args(args):
+        return [(Request._value_to_utf8_bytes(key), Request._value_to_utf8_bytes(value))
+                for key, value in args]
+
+    @staticmethod
+    def _value_to_utf8_bytes(value):
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, bytearray):
+            return bytes(value)
+        return str(value).encode("utf-8")
+
     def __init__(self, config, method_name, args=None):
         if args is None:
             args = {}
@@ -907,9 +920,9 @@ class Request:
         for key, value in args.items():
             if isinstance(value, list):
                 for it in value:
-                    self.args.append((key, str(it)))
+                    self.args.append((key, it))
             else:
-                self.args.append((key, str(value)))
+                self.args.append((key, value))
         self.config = config
         self.method_name = method_name
 
@@ -919,7 +932,8 @@ class Request:
         args = list(self.args)
         args.append(('apiKey', self.config.api_key))
         args.append(('time', str(int(time.time()))))
-        args.append(('apiSig', self.get_api_signature(args, self.config.api_secret)))
+        args = Request._encoded_args(args)
+        args.append((b'apiSig', self.get_api_signature(args, Request._value_to_utf8_bytes(self.config.api_secret))))
         response = requests.post(
             self.config.api_url + self.method_name, files=args)
         return Response(json.loads(response.text))
@@ -936,17 +950,17 @@ class Request:
         return response.text
 
     def get_api_signature(self, args, api_secret):
-        rand_bit = ''.join(
+        rand_bit = Request._value_to_utf8_bytes(''.join(
             random.choice(string.ascii_lowercase + string.digits)
-            for _ in range(6))
+            for _ in range(6)))
 
         arg_tuples = list(sorted(args))
-        args_bit = '&'.join(key + '=' + str(value) for key, value in arg_tuples)
-        api_signature_string = '{}/{}?{}#{}'.format(
-            rand_bit, self.method_name, args_bit, api_secret)
+        args_bit = b'&'.join(key + b'=' + value for key, value in arg_tuples)
+        api_signature_string = rand_bit + b'/' + self.method_name.encode(
+            'utf-8') + b'?' + args_bit + b'#' + api_secret
         api_signature = (
-            rand_bit +
-            hashlib.sha512(api_signature_string.encode('utf-8')).hexdigest())
+                rand_bit +
+                Request._value_to_utf8_bytes(hashlib.sha512(api_signature_string).hexdigest()))
         return api_signature
 
 
