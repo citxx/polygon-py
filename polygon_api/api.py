@@ -20,6 +20,7 @@ class Polygon:
     _PROBLEM_STATEMENT_RESOURCES = 'problem.statementResources'
     _PROBLEM_SAVE_STATEMENT_RESOURCE = 'problem.saveStatementResource'
     _PROBLEMS_LIST = 'problems.list'
+    _PROBLEM_CREATE = 'problem.create'
     _PROBLEM_CHECKER = 'problem.checker'
     _PROBLEM_VALIDATOR = 'problem.validator'
     _PROBLEM_INTERACTOR = 'problem.interactor'
@@ -66,6 +67,17 @@ class Polygon:
             }
         )
         return [Problem.from_json(self, p_json) for p_json in response.result]
+
+    def problem_create(self, name):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_CREATE,
+            args={
+                'name': name,
+            }
+        )
+        return Problem.from_json(self, response.result)
 
     def problem_info(self, problem_id):
         """
