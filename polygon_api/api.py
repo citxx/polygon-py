@@ -929,14 +929,7 @@ class Request:
     def issue(self):
         """Issues request and returns parsed JSON response"""
 
-        args = list(self.args)
-        args.append(('apiKey', self.config.api_key))
-        args.append(('time', str(int(time.time()))))
-        args = Request._encoded_args(args)
-        args.append((b'apiSig', self.get_api_signature(args, Request._value_to_utf8_bytes(self.config.api_secret))))
-        response = requests.post(
-            self.config.api_url + self.method_name, files=args)
-        return Response(json.loads(response.text))
+        return Response(json.loads(self.issue_raw()))
 
     def issue_raw(self):
         """Issues request and returns raw response (useful e.g. for files)"""
@@ -944,7 +937,8 @@ class Request:
         args = list(self.args)
         args.append(('apiKey', self.config.api_key))
         args.append(('time', str(int(time.time()))))
-        args.append(('apiSig', self.get_api_signature(args, self.config.api_secret)))
+        args = Request._encoded_args(args)
+        args.append((b'apiSig', self.get_api_signature(args, Request._value_to_utf8_bytes(self.config.api_secret))))
         response = requests.post(
             self.config.api_url + self.method_name, files=args)
         return response.text
