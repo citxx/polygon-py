@@ -15,6 +15,7 @@ class Polygon:
     _CONTEST_PROBLEMS = 'contest.problems'
     _PROBLEM_INFO = 'problem.info'
     _PROBLEM_UPDATE_INFO = 'problem.updateInfo'
+    _PROBLEM_UPDATE_WORKING_COPY = 'problem.updateWorkingCopy'
     _PROBLEM_STATEMENTS = 'problem.statements'
     _PROBLEM_SAVE_STATEMENT = 'problem.saveStatement'
     _PROBLEM_STATEMENT_RESOURCES = 'problem.statementResources'
@@ -89,6 +90,15 @@ class Polygon:
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
             },
+        )
+        return response.result
+
+    def problem_update_working_copy(self, problem_id):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_UPDATE_WORKING_COPY,
+            args={'problemId': problem_id},
         )
         return response.result
 
@@ -507,6 +517,9 @@ class Problem:
 
     def update_info(self, problem_info):
         return self._polygon.problem_update_info(self.id, problem_info)
+
+    def update_working_copy(self):
+        return self._polygon.problem_update_working_copy(self.id)
 
     def tags(self):
         return self._polygon.problem_view_tags(self.id)
