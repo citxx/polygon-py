@@ -16,6 +16,7 @@ class Polygon:
     _PROBLEM_INFO = 'problem.info'
     _PROBLEM_UPDATE_INFO = 'problem.updateInfo'
     _PROBLEM_UPDATE_WORKING_COPY = 'problem.updateWorkingCopy'
+    _PROBLEM_COMMIT_CHANGES = 'problem.commitChanges'
     _PROBLEM_STATEMENTS = 'problem.statements'
     _PROBLEM_SAVE_STATEMENT = 'problem.saveStatement'
     _PROBLEM_STATEMENT_RESOURCES = 'problem.statementResources'
@@ -99,6 +100,19 @@ class Polygon:
         response = self._request_ok_or_raise(
             self._PROBLEM_UPDATE_WORKING_COPY,
             args={'problemId': problem_id},
+        )
+        return response.result
+
+    def problem_commit_changes(self, problem_id, minor_changes=None, message=None):
+        """
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_COMMIT_CHANGES,
+            args={
+                'problemId': problem_id,
+                'minorChanges': minor_changes,
+                'message': message,
+            },
         )
         return response.result
 
@@ -520,6 +534,9 @@ class Problem:
 
     def update_working_copy(self):
         return self._polygon.problem_update_working_copy(self.id)
+
+    def commit_changes(self, minor_changes=None, message=None):
+        return self._polygon.problem_commit_changes(self.id, minor_changes, message)
 
     def tags(self):
         return self._polygon.problem_view_tags(self.id)
