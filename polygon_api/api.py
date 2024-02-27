@@ -1076,6 +1076,8 @@ class SolutionTag(Enum):
     PE = 6  # Presentation error
     ML = 7  # Memory limit exceeded
     RE = 8  # Runtime error
+    TM = 9  # Time limit exceeded or memory limit exceeded
+    NR = 10 # Do not run
 
     def __str__(self):
         return self.name
