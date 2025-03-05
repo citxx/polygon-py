@@ -971,7 +971,12 @@ class Request:
     def issue(self):
         """Issues request and returns parsed JSON response"""
 
-        return Response(json.loads(self.issue_raw()))
+        response_raw = self.issue_raw()
+        try:
+	        response_json = json.loads(response_raw)
+        except json.decoder.JSONDecodeError as exc:
+	        raise HTTPRequestFailedException(f'Method {self.method_name} has not returned a valid JSON.') from exc
+        return Response(response_json)
 
     def issue_raw(self):
         """Issues request and returns raw response (useful e.g. for files)"""
@@ -983,6 +988,10 @@ class Request:
         args.append((b'apiSig', self.get_api_signature(args, Request._value_to_utf8_bytes(self.config.api_secret))))
         response = requests.post(
             self.config.api_url + self.method_name, files=args)
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            raise HTTPRequestFailedException(f'Method {self.method_name} returned HTTP code {response.status_code}') from exc
         return response.text
 
     def get_api_signature(self, args, api_secret):
@@ -1034,6 +1043,13 @@ class RequestConfig:
 
 class PolygonRequestFailedException(Exception):
     """Exception raised when Polygon returns FAILED as request status"""
+
+    def __init__(self, comment):
+        self.comment = comment
+
+
+class HTTPRequestFailedException(Exception):
+    """Exception raised when Polygon request is failed or Polygon does not return a JSON"""
 
     def __init__(self, comment):
         self.comment = comment
