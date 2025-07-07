@@ -386,7 +386,7 @@ class Polygon:
         """
         Returns test generation script
         """
-        response = self._request_raw(
+        response = self._request_text(
             self._PROBLEM_SCRIPT,
             args={
                 'problemId': problem_id,
@@ -399,7 +399,7 @@ class Polygon:
         """
         Returns generated test input
         """
-        response = self._request_raw(
+        response = self._request_text(
             self._PROBLEM_TEST_INPUT,
             args={
                 'problemId': problem_id,
@@ -413,7 +413,7 @@ class Polygon:
         """
         Returns generated test answer
         """
-        response = self._request_raw(
+        response = self._request_text(
             self._PROBLEM_TEST_ANSWER,
             args={
                 'problemId': problem_id,
@@ -457,7 +457,7 @@ class Polygon:
         return [TestGroup.from_json(js) for js in response.result]
 
     def problem_view_file(self, problem_id, type, name):
-        response = self._request_raw(
+        response = self._request_text(
             self._PROBLEM_VIEW_FILE,
             args={
                 'problemId': problem_id,
@@ -468,7 +468,7 @@ class Polygon:
         return response
 
     def problem_view_solution(self, problem_id, name):
-        response = self._request_raw(
+        response = self._request_text(
             self._PROBLEM_VIEW_SOLUTION,
             args={
                 'problemId': problem_id,
@@ -678,6 +678,16 @@ class Polygon:
         )
         return [Package.from_json(js) for js in response.result]
 
+    def problem_package(self, problem_id, package_id, type=None):
+        return self._request_raw(
+            self._PROBLEM_PACKAGE,
+            args={
+                'problemId': problem_id,
+                'packageId': package_id,
+                'type': type,
+            },
+        )
+
     def problem_build_package(self, problem_id, verify, full):
         """
         Start building a package
@@ -713,6 +723,10 @@ class Polygon:
     def _request(self, method_name, args=None):
         request = Request(self.request_config, method_name, args)
         return request.issue()
+
+    def _request_text(self, method_name, args=None):
+        request = Request(self.request_config, method_name, args)
+        return request.issue_text()
 
     def _request_raw(self, method_name, args=None):
         request = Request(self.request_config, method_name, args)
@@ -921,6 +935,9 @@ class Problem:
 
     def packages(self):
         return self._polygon.problem_packages(self.id)
+
+    def package(self, package_id, type=None):
+        return self._polygon.problem_package(self.id, package_id, type)
 
     def build_package(self, verify, full):
         return self._polygon.problem_build_package(self.id, verify, full)
@@ -1339,15 +1356,25 @@ class Request:
     def issue(self):
         """Issues request and returns parsed JSON response"""
 
-        response_raw = self.issue_raw()
+        response_text = self.issue_text()
         try:
-            response_json = json.loads(response_raw)
+            response_json = json.loads(response_text)
         except json.decoder.JSONDecodeError as exc:
             raise HTTPRequestFailedException(f'Method {self.method_name} has not returned a valid JSON.') from exc
         return Response(response_json)
 
+    def issue_text(self):
+        """Issues request and returns the response body as text (useful e.g. for scripts and tests)"""
+
+        return self._issue().text
+
     def issue_raw(self):
-        """Issues request and returns raw response (useful e.g. for files)"""
+        """Issues request and returns the response body as bytes (useful e.g. for packages)"""
+
+        return self._issue().content
+
+    def _issue(self):
+        """Issues request and returns the requests.Response as is"""
 
         args = list(self.args)
         args.append(('apiKey', self.config.api_key))
@@ -1362,7 +1389,7 @@ class Request:
             except requests.exceptions.HTTPError as exc:
                 raise HTTPRequestFailedException(
                     f'Method {self.method_name} returned HTTP code {response.status_code}') from exc
-        return response.text
+        return response
 
     def get_api_signature(self, args, api_secret):
         rand_bit = Request._value_to_utf8_bytes(''.join(
