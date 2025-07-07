@@ -53,6 +53,8 @@ class Polygon:
     _PROBLEM_SAVE_GENERAL_DESCRIPTION = 'problem.saveGeneralDescription'
     _PROBLEM_VIEW_GENERAL_TUTORIAL = 'problem.viewGeneralTutorial'
     _PROBLEM_SAVE_GENERAL_TUTORIAL = 'problem.saveGeneralTutorial'
+    _PROBLEM_PACKAGES = 'problem.packages'
+    _PROBLEM_PACKAGE = 'problem.package'
 
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
@@ -283,6 +285,17 @@ class Polygon:
         )
         return response.result
 
+    def problem_save_script(self, problem_id, testset, source):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'source': source,
+            }
+        )
+        return response.result
+
     def problem_save_test(self, problem_id, testset, test_index, test_input, test_group=None, test_points=None,
                           test_description=None, test_use_in_statements=None, test_input_for_statements=None,
                           test_output_for_statements=None, verify_input_output_for_statements=None,
@@ -336,6 +349,28 @@ class Polygon:
             }
         )
         return [Test.from_json(self, problem_id, testset, js) for js in response.result]
+
+    def problem_test_input(self, problem_id, testset, test_index):
+        response = self._request_raw(
+            self._PROBLEM_TEST_INPUT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
+
+    def problem_test_answer(self, problem_id, testset, test_index):
+        response = self._request_raw(
+            self._PROBLEM_TEST_ANSWER,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
 
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
                                 dependencies=None):
@@ -484,6 +519,25 @@ class Polygon:
         )
         return response.result
 
+    def problem_packages(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_PACKAGES,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return [Package.from_json(package) for package in response.result]
+
+    def problem_package(self, problem_id, package_id, type=None):
+        return self._request_raw(
+            self._PROBLEM_PACKAGE,
+            args={
+                'problemId': problem_id,
+                'packageId': package_id,
+                'type': type,
+            },
+        )
+
     def contest_problems(self, contest_id):
         """
         """
@@ -610,6 +664,9 @@ class Problem:
     def enable_points(self, enable):
         return self._polygon.problem_enable_points(self.id, enable)
 
+    def save_script(self, testset, source):
+        return self._polygon.problem_save_script(self.id, testset, source)
+
     def save_test(self, testset, test_index, test_input, test_group=None, test_points=None, test_description=None,
                   test_use_in_statements=None, test_input_for_statements=None, test_output_for_statements=None,
                   verify_input_output_for_statements=None, check_existing=None):
@@ -620,6 +677,12 @@ class Problem:
 
     def tests(self, testset, no_inputs=None):
         return self._polygon.problem_tests(self.id, testset, no_inputs)
+
+    def test_input(self, testset, test_index):
+        return self._polygon.problem_test_input(self.id, testset, test_index)
+
+    def test_answer(self, testset, test_index):
+        return self._polygon.problem_test_answer(self.id, testset, test_index)
 
     def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None):
         return self._polygon.problem_save_test_group(self.id, testset, group,
@@ -672,6 +735,12 @@ class Problem:
 
     def files_aux(self):
         return self.files()[FileType.AUX]
+
+    def packages(self):
+        return self._polygon.problem_packages(self.id)
+
+    def package(self, packageId, type=None):
+        return self._polygon.problem_package(self.id, packageId, type)
 
 
 class ProblemInfo:
@@ -927,6 +996,37 @@ class File:
         self.resource_advanced_properties = resource_advanced_properties
 
 
+class Package:
+    """
+    Object: representing Polygon package
+    """
+    _ID = "id"
+    _REVISION = "revision"
+    _CREATION_TIME_SECONDS = "creationTimeSeconds"
+    _STATE = "state"
+    _COMMENT = "comment"
+    _TYPE = "type"
+
+    @classmethod
+    def from_json(cls, file_json):
+        return cls(
+            id=file_json[Package._ID],
+            revision=file_json[Package._REVISION],
+            creation_time_seconds=file_json[Package._CREATION_TIME_SECONDS],
+            state=file_json[Package._STATE],
+            comment=file_json[Package._COMMENT],
+            type=file_json.get(Package._TYPE, None)
+        )
+
+    def __init__(self, id, revision, creation_time_seconds, state, comment, type):
+        self.id = id
+        self.revision = revision
+        self.creation_time_seconds = creation_time_seconds
+        self.state = state
+        self.comment = comment
+        self.type = type
+
+
 class ResourceAdvancedProperties:
     """
     """
@@ -1020,7 +1120,7 @@ class Request:
                 response.raise_for_status()
             except requests.exceptions.HTTPError as exc:
                 raise HTTPRequestFailedException(f'Method {self.method_name} returned HTTP code {response.status_code}') from exc
-        return response.text
+        return response.content
 
     def get_api_signature(self, args, api_secret):
         rand_bit = Request._value_to_utf8_bytes(''.join(
