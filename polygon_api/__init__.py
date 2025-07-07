@@ -26,3 +26,5 @@ from .api import (
     ValidatorTestVerdict,
     CheckerTestVerdict
 )
+
+__version__ = "1.0.1"
