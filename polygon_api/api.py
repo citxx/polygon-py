@@ -326,12 +326,13 @@ class Polygon:
         )
         return {type: [File.from_json(js) for js in response.result[str(type) + 'Files']] for type in FileType}
 
-    def problem_tests(self, problem_id, testset):
+    def problem_tests(self, problem_id, testset, no_inputs=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_TESTS,
             args={
                 'problemId': problem_id,
                 'testset': testset,
+                'noInputs': no_inputs,
             }
         )
         return [Test.from_json(self, problem_id, testset, js) for js in response.result]
@@ -607,8 +608,8 @@ class Problem:
                                                test_output_for_statements, verify_input_output_for_statements,
                                                check_existing)
 
-    def tests(self, testset):
-        return self._polygon.problem_tests(self.id, testset)
+    def tests(self, testset, no_inputs=None):
+        return self._polygon.problem_tests(self.id, testset, no_inputs)
 
     def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None):
         return self._polygon.problem_save_test_group(self.id, testset, group,
@@ -735,7 +736,7 @@ class ManualTest(Test):
             problem_id=problem_id,
             testset=testset,
             index=int(test_json[Test._INDEX]),
-            input=test_json[Test._INPUT],
+            input=test_json.get(Test._INPUT, None),
             group=test_json.get(Test._GROUP, ""),
             points=int(test_json.get(Test._POINTS, "0")),
             description=test_json.get(Test._DESCRIPTION, None),
