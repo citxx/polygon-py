@@ -383,6 +383,16 @@ class Polygon:
         )
         return response
 
+    def problem_view_solution(self, problem_id, name):
+        response = self._request_raw(
+            self._PROBLEM_VIEW_SOLUTION,
+            args={
+                'problemId': problem_id,
+                'name': name
+            }
+        )
+        return response
+
     def problem_save_file(self, problem_id, type, name, file, source_type=None, resource_advanced_properties=None):
         stages = None if resource_advanced_properties is None or resource_advanced_properties.stages is None else \
             ';'.join(map(str, resource_advanced_properties.stages))
@@ -620,6 +630,9 @@ class Problem:
 
     def view_file(self, type, name):
         return self._polygon.problem_view_file(self.id, type, name)
+
+    def view_solution(self, name):
+        return self._polygon.problem_view_solution(self.id, name)
 
     def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type, resource_advanced_properties)
