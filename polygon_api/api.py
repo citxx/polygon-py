@@ -337,6 +337,28 @@ class Polygon:
         )
         return [Test.from_json(self, problem_id, testset, js) for js in response.result]
 
+    def problem_test_input(self, problem_id, testset, test_index):
+        response = self._request_raw(
+            self._PROBLEM_TEST_INPUT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
+
+    def problem_test_answer(self, problem_id, testset, test_index):
+        response = self._request_raw(
+            self._PROBLEM_TEST_ANSWER,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
+
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
                                 dependencies=None):
         if isinstance(dependencies, list):
@@ -620,6 +642,12 @@ class Problem:
 
     def tests(self, testset, no_inputs=None):
         return self._polygon.problem_tests(self.id, testset, no_inputs)
+
+    def test_input(self, testset, test_index):
+        return self._polygon.problem_test_input(self.id, testset, test_index)
+
+    def test_answer(self, testset, test_index):
+        return self._polygon.problem_test_answer(self.id, testset, test_index)
 
     def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None):
         return self._polygon.problem_save_test_group(self.id, testset, group,
