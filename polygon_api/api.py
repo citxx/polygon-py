@@ -741,8 +741,8 @@ class Test:
     _SCRIPT_LINE = "scriptLine"
     _GROUP = "group"
     _POINTS = "points"
-    _INPUT_FOR_STATEMENTS = "inputForStatements"
-    _OUTPUT_FOR_STATEMENTS = "outputForStatements"
+    _INPUT_FOR_STATEMENTS = "inputForStatement"
+    _OUTPUT_FOR_STATEMENTS = "outputForStatement"
     _VERIFY_INPUT_OUTPUT_FOR_STATEMENTS = "verifyInputOutputForStatements"
 
     @classmethod
