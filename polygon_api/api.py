@@ -45,6 +45,7 @@ class Polygon:
     _PROBLEM_SAVE_TEST = 'problem.saveTest'
     _PROBLEM_ENABLE_GROUPS = 'problem.enableGroups'
     _PROBLEM_ENABLE_POINTS = 'problem.enablePoints'
+    _PROBLEM_SET_TEST_GROUP = 'problem.setTestGroup'
     _PROBLEM_VIEW_TEST_GROUP = 'problem.viewTestGroup'
     _PROBLEM_SAVE_TEST_GROUP = 'problem.saveTestGroup'
     _PROBLEM_VIEW_TAGS = 'problem.viewTags'
@@ -282,6 +283,23 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'enable': enable,
+            },
+        )
+        return response.result
+
+    def problem_set_test_group(self, problem_id, testset, test_group, test_index=None, test_indices=None):
+        """
+        """
+        if isinstance(test_indices, list):
+            test_indices = ",".join(map(str, test_indices))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_TEST_GROUP,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testGroup': test_group,
+                'testIndex': test_index,
+                'testIndices': test_indices,
             },
         )
         return response.result
@@ -677,6 +695,9 @@ class Problem:
 
     def enable_points(self, enable):
         return self._polygon.problem_enable_points(self.id, enable)
+
+    def set_test_group(self, testset, test_group, test_index=None, test_indices=None):
+        return self._polygon.problem_set_test_group(self.id, testset, test_group, test_index, test_indices)
 
     def save_script(self, testset, source):
         return self._polygon.problem_save_script(self.id, testset, source)
