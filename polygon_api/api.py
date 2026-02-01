@@ -53,6 +53,7 @@ class Polygon:
     _PROBLEM_SAVE_GENERAL_DESCRIPTION = 'problem.saveGeneralDescription'
     _PROBLEM_VIEW_GENERAL_TUTORIAL = 'problem.viewGeneralTutorial'
     _PROBLEM_SAVE_GENERAL_TUTORIAL = 'problem.saveGeneralTutorial'
+    _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
     _PROBLEM_PACKAGES = 'problem.packages'
     _PROBLEM_PACKAGE = 'problem.package'
 
@@ -540,6 +541,17 @@ class Polygon:
             },
         )
 
+    def problem_build_package(self, problem_id, full, verify):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_BUILD_PACKAGE,
+            args={
+                'problemId': problem_id,
+                'full': full,
+                'verify': verify,
+            },
+        )
+        return response.result
+
     def contest_problems(self, contest_id):
         """
         """
@@ -744,6 +756,9 @@ class Problem:
 
     def package(self, packageId, type=None):
         return self._polygon.problem_package(self.id, packageId, type)
+
+    def build_package(self, full, verify):
+        return self._polygon.problem_build_package(self.id, full, verify)
 
 
 class ProblemInfo:
