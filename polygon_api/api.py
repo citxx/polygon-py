@@ -53,6 +53,9 @@ class Polygon:
     _PROBLEM_SAVE_GENERAL_DESCRIPTION = 'problem.saveGeneralDescription'
     _PROBLEM_VIEW_GENERAL_TUTORIAL = 'problem.viewGeneralTutorial'
     _PROBLEM_SAVE_GENERAL_TUTORIAL = 'problem.saveGeneralTutorial'
+    _PROBLEM_PACKAGES = 'problem.packages'
+    _PROBLEM_PACKAGE = 'problem.package'
+    _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
 
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
@@ -337,6 +340,47 @@ class Polygon:
         )
         return [Test.from_json(self, problem_id, testset, js) for js in response.result]
 
+    def problem_script(self, problem_id, testset):
+        """
+        Returns test generation script
+        """
+        response = self._request_raw(
+            self._PROBLEM_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+            }
+        )
+        return response
+
+    def problem_test_input(self, problem_id, testset, test_index):
+        """
+        Returns generated test input
+        """
+        response = self._request_raw(
+            self._PROBLEM_TEST_INPUT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
+
+    def problem_test_answer(self, problem_id, testset, test_index):
+        """
+        Returns generated test answer
+        """
+        response = self._request_raw(
+            self._PROBLEM_TEST_ANSWER,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
+
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
                                 dependencies=None):
         if isinstance(dependencies, list):
@@ -427,6 +471,20 @@ class Polygon:
         )
         return response.result
 
+    def problem_save_script(self, problem_id, testset, source):
+        """
+        Edit test generation script
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'source': source,
+            }
+        )
+        return response.result
+
     def problem_checker(self, problem_id):
         response = self._request_ok_or_raise(
             self._PROBLEM_CHECKER,
@@ -481,6 +539,30 @@ class Polygon:
                 'problemId': problem_id,
                 'interactor': interactor,
             },
+        )
+        return response.result
+
+    def problem_packages(self, problem_id):
+        """
+        Returns list of packages
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_PACKAGES,
+            args={'problemId': problem_id},
+        )
+        return [Package.from_json(js) for js in response.result]
+
+    def problem_build_package(self, problem_id, verify, full):
+        """
+        Start building a package
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_BUILD_PACKAGE,
+            args={
+                'problemId': problem_id,
+                'verify': verify,
+                'full': full,
+            }
         )
         return response.result
 
@@ -672,6 +754,24 @@ class Problem:
 
     def files_aux(self):
         return self.files()[FileType.AUX]
+
+    def script(self, testset):
+        return self._polygon.problem_script(self.id, testset)
+
+    def test_input(self, testset, test_index):
+        return self._polygon.problem_test_input(self.id, testset, test_index)
+
+    def test_answer(self, testset, test_index):
+        return self._polygon.problem_test_answer(self.id, testset, test_index)
+
+    def save_script(self, testset, source):
+        return self._polygon.problem_save_script(self.id, testset, source)
+
+    def packages(self):
+        return self._polygon.problem_packages(self.id)
+
+    def build_package(self, verify, full):
+        return self._polygon.problem_build_package(self.id, verify, full)
 
 
 class ProblemInfo:
@@ -868,6 +968,37 @@ class Statement:
         self.interaction = interaction
         self.notes = notes
         self.tutorial = tutorial
+
+
+class Package:
+    """
+    Object: representing Polygon package
+    """
+    _ID = "id"
+    _REVISION = "revision"
+    _CREATION_TIME_SECONDS = "creationTimeSeconds"
+    _STATE = "state"
+    _COMMENT = "comment"
+    _TYPE = "type"
+
+    @classmethod
+    def from_json(cls, package_json):
+        return cls(
+            id=package_json[Package._ID],
+            revision=package_json[Package._REVISION],
+            creation_time_seconds=package_json[Package._CREATION_TIME_SECONDS],
+            state=PackageState[package_json[Package._STATE]],
+            comment=package_json[Package._COMMENT],
+            type=PackageType[package_json[Package._TYPE].upper()]
+        )
+
+    def __init__(self, id, revision, creation_time_seconds, state, comment, type):
+        self.id = id
+        self.revision = revision
+        self.creation_time_seconds = creation_time_seconds
+        self.state = state
+        self.comment = comment
+        self.type = type
 
 
 class Solution:
@@ -1143,3 +1274,22 @@ class Stage(Enum):
 
     def __str__(self):
         return self.name
+
+
+class PackageState(Enum):
+    PENDING = 0
+    RUNNING = 1
+    READY = 2
+    FAILED = 3
+
+    def __str__(self):
+        return self.name
+
+
+class PackageType(Enum):
+    STANDARD = 0
+    LINUX = 1
+    WINDOWS = 2
+
+    def __str__(self):
+        return self.name.lower()
