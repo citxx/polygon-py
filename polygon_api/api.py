@@ -304,6 +304,16 @@ class Polygon:
         )
         return response.result
 
+    def problem_script(self, problem_id, testset):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+            },
+        )
+        return response.result
+
     def problem_save_script(self, problem_id, testset, source):
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_SCRIPT,
@@ -698,6 +708,9 @@ class Problem:
 
     def set_test_group(self, testset, test_group, test_index=None, test_indices=None):
         return self._polygon.problem_set_test_group(self.id, testset, test_group, test_index, test_indices)
+
+    def script(self, testset):
+        return self._polygon.problem_script(self.id, testset)
 
     def save_script(self, testset, source):
         return self._polygon.problem_save_script(self.id, testset, source)
