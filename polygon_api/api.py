@@ -362,15 +362,16 @@ class Polygon:
         )
         return response.result
 
-    def problem_view_test_group(self, testset, group):
+    def problem_view_test_group(self, problem_id, testset, group=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_TEST_GROUP,
             args={
+                'problemId': problem_id,
                 'testset': testset,
                 'group': group,
             },
         )
-        return TestGroup.from_json(response.result)
+        return [TestGroup.from_json(js) for js in response.result]
 
     def problem_view_file(self, problem_id, type, name):
         response = self._request_raw(
@@ -625,8 +626,8 @@ class Problem:
         return self._polygon.problem_save_test_group(self.id, testset, group,
                                                      points_policy, feedback_policy, dependencies)
 
-    def view_test_group(self, testset, group):
-        return self._polygon.problem_view_test_group(testset, group)
+    def view_test_group(self, testset, group=None):
+        return self._polygon.problem_view_test_group(self.id, testset, group)
 
     def view_file(self, type, name):
         return self._polygon.problem_view_file(self.id, type, name)
