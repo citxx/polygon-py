@@ -413,7 +413,7 @@ class Polygon:
         )
         return response.result
 
-    def problem_save_solution(self, problem_id, name, file, source_type, tag, check_existing=None):
+    def problem_save_solution(self, problem_id, name, file, tag, source_type=None, check_existing=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_SOLUTION,
             args={
@@ -637,8 +637,8 @@ class Problem:
     def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type, resource_advanced_properties)
 
-    def save_solution(self, name, file, source_type, tag, check_existing=None):
-        return self._polygon.problem_save_solution(self.id, name, file, source_type, tag, check_existing)
+    def save_solution(self, name, file, tag, source_type=None, check_existing=None):
+        return self._polygon.problem_save_solution(self.id, name, file, tag, source_type, check_existing)
 
     def checker(self):
         return self._polygon.problem_checker(self.id)
