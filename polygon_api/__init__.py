@@ -12,3 +12,5 @@ from .api import (
     Stage,
     Asset,
 )
+
+__version__ = "1.0.1"
