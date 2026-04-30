@@ -26,7 +26,12 @@ class Polygon:
     _PROBLEM_CREATE = 'problem.create'
     _PROBLEM_CHECKER = 'problem.checker'
     _PROBLEM_VALIDATOR = 'problem.validator'
+    _PROBLEM_EXTRA_VALIDATORS = 'problem.extraValidators'
     _PROBLEM_INTERACTOR = 'problem.interactor'
+    _PROBLEM_VALIDATOR_TESTS = 'problem.validatorTests'
+    _PROBLEM_SAVE_VALIDATOR_TEST = 'problem.saveValidatorTest'
+    _PROBLEM_CHECKER_TESTS = 'problem.checkerTests'
+    _PROBLEM_SAVE_CHECKER_TEST = 'problem.saveCheckerTest'
     _PROBLEM_FILES = 'problem.files'
     _PROBLEM_SOLUTIONS = 'problem.solutions'
     _PROBLEM_VIEW_FILE = 'problem.viewFile'
@@ -43,6 +48,7 @@ class Polygon:
     _PROBLEM_EDIT_SOLUTION_EXTRA_TAGS = 'problem.editSolutionExtraTags'
     _PROBLEM_SAVE_SCRIPT = 'problem.saveScript'
     _PROBLEM_SAVE_TEST = 'problem.saveTest'
+    _PROBLEM_SET_TEST_GROUP = 'problem.setTestGroup'
     _PROBLEM_ENABLE_GROUPS = 'problem.enableGroups'
     _PROBLEM_ENABLE_POINTS = 'problem.enablePoints'
     _PROBLEM_VIEW_TEST_GROUP = 'problem.viewTestGroup'
@@ -53,6 +59,9 @@ class Polygon:
     _PROBLEM_SAVE_GENERAL_DESCRIPTION = 'problem.saveGeneralDescription'
     _PROBLEM_VIEW_GENERAL_TUTORIAL = 'problem.viewGeneralTutorial'
     _PROBLEM_SAVE_GENERAL_TUTORIAL = 'problem.saveGeneralTutorial'
+    _PROBLEM_PACKAGES = 'problem.packages'
+    _PROBLEM_PACKAGE = 'problem.package'
+    _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
 
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
@@ -308,6 +317,31 @@ class Polygon:
         )
         return response.result
 
+    def problem_set_test_group(self, problem_id, testset, test_group, test_index=None, test_indices=None):
+        if test_index is None and test_indices is None:
+            raise ValueError("Either test_index or test_indices must be specified")
+        if test_index is not None and test_indices is not None:
+            raise ValueError("Only one of test_index or test_indices must be specified")
+
+        # Handle test_indices as a comma-separated string
+        if test_indices is not None:
+            if isinstance(test_indices, list):
+                test_indices = ",".join(map(str, test_indices))
+            elif test_indices is not None:
+                test_indices = str(test_indices)
+
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_TEST_GROUP,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testGroup': test_group,
+                'testIndex': test_index,
+                'testIndices': test_indices,
+            }
+        )
+        return response.result
+
     def problem_solutions(self, problem_id):
         response = self._request_ok_or_raise(
             self._PROBLEM_SOLUTIONS,
@@ -336,6 +370,47 @@ class Polygon:
             }
         )
         return [Test.from_json(self, problem_id, testset, js) for js in response.result]
+
+    def problem_script(self, problem_id, testset):
+        """
+        Returns test generation script
+        """
+        response = self._request_raw(
+            self._PROBLEM_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+            }
+        )
+        return response
+
+    def problem_test_input(self, problem_id, testset, test_index):
+        """
+        Returns generated test input
+        """
+        response = self._request_raw(
+            self._PROBLEM_TEST_INPUT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
+
+    def problem_test_answer(self, problem_id, testset, test_index):
+        """
+        Returns generated test answer
+        """
+        response = self._request_raw(
+            self._PROBLEM_TEST_ANSWER,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+            }
+        )
+        return response
 
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
                                 dependencies=None):
@@ -428,6 +503,20 @@ class Polygon:
         )
         return response.result
 
+    def problem_save_script(self, problem_id, testset, source):
+        """
+        Edit test generation script
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'source': source,
+            }
+        )
+        return response.result
+
     def problem_edit_solution_extra_tags(self, problem_id, remove, name, testset=None, test_group=None, tag=None):
         if (testset is None) == (test_group is None):
             raise ValueError("Exactly one of testset or test_group must be specified")
@@ -466,6 +555,31 @@ class Polygon:
         )
         return response.result
 
+    def problem_checker_tests(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_CHECKER_TESTS,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return [CheckerTest.from_json(js) for js in response.result]
+
+    def problem_save_checker_test(self, problem_id, test_index, test_input=None, test_output=None,
+                                   test_answer=None, test_verdict=None, check_existing=None):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_CHECKER_TEST,
+            args={
+                'problemId': problem_id,
+                'testIndex': test_index,
+                'testInput': test_input,
+                'testOutput': test_output,
+                'testAnswer': test_answer,
+                'testVerdict': test_verdict,
+                'checkExisting': check_existing,
+            },
+        )
+        return response.result
+
     def problem_validator(self, problem_id):
         response = self._request_ok_or_raise(
             self._PROBLEM_VALIDATOR,
@@ -481,6 +595,40 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'validator': validator,
+            },
+        )
+        return response.result
+
+    def problem_extra_validators(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_EXTRA_VALIDATORS,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return response.result
+
+    def problem_validator_tests(self, problem_id):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_VALIDATOR_TESTS,
+            args={
+                'problemId': problem_id,
+            },
+        )
+        return [ValidatorTest.from_json(js) for js in response.result]
+
+    def problem_save_validator_test(self, problem_id, test_index, test_input=None, test_verdict=None,
+                                     test_group=None, testset=None, check_existing=None):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_VALIDATOR_TEST,
+            args={
+                'problemId': problem_id,
+                'testIndex': test_index,
+                'testInput': test_input,
+                'testVerdict': test_verdict,
+                'testGroup': test_group,
+                'testset': testset,
+                'checkExisting': check_existing,
             },
         )
         return response.result
@@ -501,6 +649,30 @@ class Polygon:
                 'problemId': problem_id,
                 'interactor': interactor,
             },
+        )
+        return response.result
+
+    def problem_packages(self, problem_id):
+        """
+        Returns list of packages
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_PACKAGES,
+            args={'problemId': problem_id},
+        )
+        return [Package.from_json(js) for js in response.result]
+
+    def problem_build_package(self, problem_id, verify, full):
+        """
+        Start building a package
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_BUILD_PACKAGE,
+            args={
+                'problemId': problem_id,
+                'verify': verify,
+                'full': full,
+            }
         )
         return response.result
 
@@ -638,6 +810,9 @@ class Problem:
                                                test_output_for_statements, verify_input_output_for_statements,
                                                check_existing)
 
+    def set_test_group(self, testset, test_group, test_index=None, test_indices=None):
+        return self._polygon.problem_set_test_group(self.id, testset, test_group, test_index, test_indices)
+
     def tests(self, testset, no_inputs=None):
         return self._polygon.problem_tests(self.id, testset, no_inputs)
 
@@ -669,11 +844,30 @@ class Problem:
     def set_checker(self, checker):
         return self._polygon.problem_set_checker(self.id, checker)
 
+    def checker_tests(self):
+        return self._polygon.problem_checker_tests(self.id)
+
+    def save_checker_test(self, test_index, test_input=None, test_output=None,
+                          test_answer=None, test_verdict=None, check_existing=None):
+        return self._polygon.problem_save_checker_test(self.id, test_index, test_input, test_output,
+                                                      test_answer, test_verdict, check_existing)
+
     def validator(self):
         return self._polygon.problem_validator(self.id)
 
     def set_validator(self, validator):
         return self._polygon.problem_set_validator(self.id, validator)
+
+    def validator_tests(self):
+        return self._polygon.problem_validator_tests(self.id)
+
+    def save_validator_test(self, test_index, test_input=None, test_verdict=None,
+                            test_group=None, testset=None, check_existing=None):
+        return self._polygon.problem_save_validator_test(self.id, test_index, test_input, test_verdict,
+                                                        test_group, testset, check_existing)
+
+    def extra_validators(self):
+        return self._polygon.problem_extra_validators(self.id)
 
     def interactor(self):
         return self._polygon.problem_interactor(self.id)
@@ -695,6 +889,24 @@ class Problem:
 
     def files_aux(self):
         return self.files()[FileType.AUX]
+
+    def script(self, testset):
+        return self._polygon.problem_script(self.id, testset)
+
+    def test_input(self, testset, test_index):
+        return self._polygon.problem_test_input(self.id, testset, test_index)
+
+    def test_answer(self, testset, test_index):
+        return self._polygon.problem_test_answer(self.id, testset, test_index)
+
+    def save_script(self, testset, source):
+        return self._polygon.problem_save_script(self.id, testset, source)
+
+    def packages(self):
+        return self._polygon.problem_packages(self.id)
+
+    def build_package(self, verify, full):
+        return self._polygon.problem_build_package(self.id, verify, full)
 
 
 class ProblemInfo:
@@ -893,6 +1105,37 @@ class Statement:
         self.tutorial = tutorial
 
 
+class Package:
+    """
+    Object: representing Polygon package
+    """
+    _ID = "id"
+    _REVISION = "revision"
+    _CREATION_TIME_SECONDS = "creationTimeSeconds"
+    _STATE = "state"
+    _COMMENT = "comment"
+    _TYPE = "type"
+
+    @classmethod
+    def from_json(cls, package_json):
+        return cls(
+            id=package_json[Package._ID],
+            revision=package_json[Package._REVISION],
+            creation_time_seconds=package_json[Package._CREATION_TIME_SECONDS],
+            state=PackageState[package_json[Package._STATE]],
+            comment=package_json[Package._COMMENT],
+            type=PackageType[package_json[Package._TYPE].upper()]
+        )
+
+    def __init__(self, id, revision, creation_time_seconds, state, comment, type):
+        self.id = id
+        self.revision = revision
+        self.creation_time_seconds = creation_time_seconds
+        self.state = state
+        self.comment = comment
+        self.type = type
+
+
 class Solution:
     """
     Object: representing Polygon problem solution
@@ -975,6 +1218,62 @@ class ResourceAdvancedProperties:
 
 
 ResourceAdvancedProperties.DELETE = ResourceAdvancedProperties(for_types="")
+
+
+class ValidatorTest:
+    """
+    Object: representing Polygon validator test
+    """
+    _INDEX = "index"
+    _INPUT = "input"
+    _EXPECTED_VERDICT = "expectedVerdict"
+    _TESTSET = "testset"
+    _GROUP = "group"
+
+    @classmethod
+    def from_json(cls, validator_test_json):
+        return cls(
+            index=validator_test_json[ValidatorTest._INDEX],
+            input=validator_test_json[ValidatorTest._INPUT],
+            expected_verdict=ValidatorTestVerdict[validator_test_json[ValidatorTest._EXPECTED_VERDICT]],
+            testset=validator_test_json.get(ValidatorTest._TESTSET, None),
+            group=validator_test_json.get(ValidatorTest._GROUP, None),
+        )
+
+    def __init__(self, index, input, expected_verdict, testset=None, group=None):
+        self.index = index
+        self.input = input
+        self.expected_verdict = expected_verdict
+        self.testset = testset
+        self.group = group
+
+
+class CheckerTest:
+    """
+    Object: representing Polygon checker test
+    """
+    _INDEX = "index"
+    _INPUT = "input"
+    _OUTPUT = "output"
+    _ANSWER = "answer"
+    _EXPECTED_VERDICT = "expectedVerdict"
+
+    @classmethod
+    def from_json(cls, checker_test_json):
+        return cls(
+            index=checker_test_json[CheckerTest._INDEX],
+            input=checker_test_json[CheckerTest._INPUT],
+            output=checker_test_json[CheckerTest._OUTPUT],
+            answer=checker_test_json[CheckerTest._ANSWER],
+            expected_verdict=CheckerTestVerdict[checker_test_json[CheckerTest._EXPECTED_VERDICT]],
+        )
+
+    def __init__(self, index, input, output, answer, expected_verdict):
+        self.index = index
+        self.input = input
+        self.output = output
+        self.answer = answer
+        self.expected_verdict = expected_verdict
 
 
 class Request:
@@ -1163,6 +1462,43 @@ class Asset(Enum):
 class Stage(Enum):
     COMPILE = 0
     RUN = 1
+
+    def __str__(self):
+        return self.name
+
+
+class PackageState(Enum):
+    PENDING = 0
+    RUNNING = 1
+    READY = 2
+    FAILED = 3
+
+    def __str__(self):
+        return self.name
+
+
+class PackageType(Enum):
+    STANDARD = 0
+    LINUX = 1
+    WINDOWS = 2
+
+    def __str__(self):
+        return self.name.lower()
+
+
+class ValidatorTestVerdict(Enum):
+    VALID = 0
+    INVALID = 1
+
+    def __str__(self):
+        return self.name
+
+
+class CheckerTestVerdict(Enum):
+    OK = 0
+    WRONG_ANSWER = 1
+    CRASHED = 2
+    PRESENTATION_ERROR = 3
 
     def __str__(self):
         return self.name
