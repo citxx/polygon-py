@@ -406,15 +406,16 @@ class Polygon:
         )
         return response.result
 
-    def problem_view_test_group(self, testset, group):
+    def problem_view_test_group(self, problem_id, testset, group=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_TEST_GROUP,
             args={
+                'problemId': problem_id,
                 'testset': testset,
                 'group': group,
             },
         )
-        return TestGroup.from_json(response.result)
+        return [TestGroup.from_json(js) for js in response.result]
 
     def problem_view_file(self, problem_id, type, name):
         response = self._request_raw(
@@ -457,7 +458,7 @@ class Polygon:
         )
         return response.result
 
-    def problem_save_solution(self, problem_id, name, file, source_type, tag, check_existing=None):
+    def problem_save_solution(self, problem_id, name, file, tag, source_type=None, check_existing=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_SOLUTION,
             args={
@@ -481,6 +482,25 @@ class Polygon:
                 'problemId': problem_id,
                 'testset': testset,
                 'source': source,
+            }
+        )
+        return response.result
+
+    def problem_edit_solution_extra_tags(self, problem_id, remove, name, testset=None, test_group=None, tag=None):
+        if (testset is None) == (test_group is None):
+            raise ValueError("Exactly one of testset or test_group must be specified")
+        if tag is not None and not isinstance(tag, SolutionTag):
+            raise ValueError(
+                "Expected SolutionTag instance for tag argument, but %s found" % type(tag))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_EDIT_SOLUTION_EXTRA_TAGS,
+            args={
+                'problemId': problem_id,
+                'remove': remove,
+                'name': name,
+                'testset': testset,
+                'testGroup': test_group,
+                'tag': tag,
             }
         )
         return response.result
@@ -707,8 +727,8 @@ class Problem:
         return self._polygon.problem_save_test_group(self.id, testset, group,
                                                      points_policy, feedback_policy, dependencies)
 
-    def view_test_group(self, testset, group):
-        return self._polygon.problem_view_test_group(testset, group)
+    def view_test_group(self, testset, group=None):
+        return self._polygon.problem_view_test_group(self.id, testset, group)
 
     def view_file(self, type, name):
         return self._polygon.problem_view_file(self.id, type, name)
@@ -719,8 +739,11 @@ class Problem:
     def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type, resource_advanced_properties)
 
-    def save_solution(self, name, file, source_type, tag, check_existing=None):
-        return self._polygon.problem_save_solution(self.id, name, file, source_type, tag, check_existing)
+    def save_solution(self, name, file, tag, source_type=None, check_existing=None):
+        return self._polygon.problem_save_solution(self.id, name, file, tag, source_type, check_existing)
+
+    def edit_solution_extra_tags(self, remove, name, testset=None, test_group=None, tag=None):
+        return self._polygon.problem_edit_solution_extra_tags(self.id, remove, name, testset, test_group, tag)
 
     def checker(self):
         return self._polygon.problem_checker(self.id)
