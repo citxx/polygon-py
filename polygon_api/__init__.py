@@ -24,6 +24,7 @@ from .api import (
     PackageState,
     PackageType,
     ValidatorTestVerdict,
+    ValidatorTestRunVerdict,
     CheckerTestVerdict
 )
 
