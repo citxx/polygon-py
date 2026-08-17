@@ -1195,8 +1195,10 @@ class File:
             modification_time_seconds=file_json[File._MODIFICATION_TIME_SECONDS],
             length=file_json[File._LENGTH],
             source_type=file_json.get(File._SOURCE_TYPE, None),
-            resource_advanced_properties=ResourceAdvancedProperties.from_json(file_json[File._RESOURCE_ADVANCED_PROPERTIES])
-                                                         if File._RESOURCE_ADVANCED_PROPERTIES in file_json.keys() else None
+            resource_advanced_properties=(
+                ResourceAdvancedProperties.from_json(file_json[File._RESOURCE_ADVANCED_PROPERTIES])
+                if File._RESOURCE_ADVANCED_PROPERTIES in file_json else None
+            ),
         )
 
     def __init__(self, name, modification_time_seconds, length, source_type, resource_advanced_properties):
@@ -1351,11 +1353,12 @@ class Request:
         args.append((b'apiSig', self.get_api_signature(args, Request._value_to_utf8_bytes(self.config.api_secret))))
         response = requests.post(
             self.config.api_url + self.method_name, files=args)
-        if response.status_code not in [200, 400]: # Polygon returns 400 and a descriptive JSON on user error
+        if response.status_code not in [200, 400]:  # Polygon returns 400 and a descriptive JSON on user error
             try:
                 response.raise_for_status()
             except requests.exceptions.HTTPError as exc:
-                raise HTTPRequestFailedException(f'Method {self.method_name} returned HTTP code {response.status_code}') from exc
+                raise HTTPRequestFailedException(
+                    f'Method {self.method_name} returned HTTP code {response.status_code}') from exc
         return response.text
 
     def get_api_signature(self, args, api_secret):
@@ -1457,7 +1460,7 @@ class SolutionTag(Enum):
     ML = 7  # Memory limit exceeded
     RE = 8  # Runtime error
     TM = 9  # Time limit exceeded or memory limit exceeded
-    NR = 10 # Do not run
+    NR = 10  # Do not run
 
     def __str__(self):
         return self.name
