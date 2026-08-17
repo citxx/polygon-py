@@ -4,7 +4,23 @@ import random
 import requests
 import string
 import time
+from collections.abc import Iterable
 from enum import Enum
+
+
+def _comma_separated(value):
+    """
+    Formats a value for an API parameter accepting a comma-separated list.
+
+    A string is passed through unchanged, any other iterable is joined with
+    commas, and anything else is stringified. None is returned as is, so that
+    Request omits the parameter altogether.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, Iterable):
+        return ",".join(map(str, value))
+    return str(value)
 
 
 class Polygon:
@@ -323,12 +339,7 @@ class Polygon:
         if test_index is not None and test_indices is not None:
             raise ValueError("Only one of test_index or test_indices must be specified")
 
-        # Handle test_indices as a comma-separated string
-        if test_indices is not None:
-            if isinstance(test_indices, list):
-                test_indices = ",".join(map(str, test_indices))
-            elif test_indices is not None:
-                test_indices = str(test_indices)
+        test_indices = _comma_separated(test_indices)
 
         response = self._request_ok_or_raise(
             self._PROBLEM_SET_TEST_GROUP,
@@ -414,10 +425,7 @@ class Polygon:
 
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
                                 dependencies=None):
-        if isinstance(dependencies, list):
-            dependencies = ",".join(map(str, dependencies))
-        elif dependencies is not None:
-            dependencies = str(dependencies)
+        dependencies = _comma_separated(dependencies)
         if points_policy is not None and not isinstance(points_policy, PointsPolicy):
             raise ValueError(
                 "Expected PointsPolicy instance for points_policy argument, but %s found" % type(points_policy))
@@ -565,7 +573,10 @@ class Polygon:
         return [CheckerTest.from_json(js) for js in response.result]
 
     def problem_save_checker_test(self, problem_id, test_index, test_input=None, test_output=None,
-                                   test_answer=None, test_verdict=None, check_existing=None):
+                                  test_answer=None, test_verdict=None, check_existing=None):
+        if test_verdict is not None and not isinstance(test_verdict, CheckerTestVerdict):
+            raise ValueError(
+                "Expected CheckerTestVerdict instance for test_verdict argument, but %s found" % type(test_verdict))
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_CHECKER_TEST,
             args={
@@ -618,7 +629,10 @@ class Polygon:
         return [ValidatorTest.from_json(js) for js in response.result]
 
     def problem_save_validator_test(self, problem_id, test_index, test_input=None, test_verdict=None,
-                                     test_group=None, testset=None, check_existing=None):
+                                    test_group=None, testset=None, check_existing=None):
+        if test_verdict is not None and not isinstance(test_verdict, ValidatorTestVerdict):
+            raise ValueError(
+                "Expected ValidatorTestVerdict instance for test_verdict argument, but %s found" % type(test_verdict))
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_VALIDATOR_TEST,
             args={
@@ -850,7 +864,7 @@ class Problem:
     def save_checker_test(self, test_index, test_input=None, test_output=None,
                           test_answer=None, test_verdict=None, check_existing=None):
         return self._polygon.problem_save_checker_test(self.id, test_index, test_input, test_output,
-                                                      test_answer, test_verdict, check_existing)
+                                                       test_answer, test_verdict, check_existing)
 
     def validator(self):
         return self._polygon.problem_validator(self.id)
@@ -864,7 +878,7 @@ class Problem:
     def save_validator_test(self, test_index, test_input=None, test_verdict=None,
                             test_group=None, testset=None, check_existing=None):
         return self._polygon.problem_save_validator_test(self.id, test_index, test_input, test_verdict,
-                                                        test_group, testset, check_existing)
+                                                         test_group, testset, check_existing)
 
     def extra_validators(self):
         return self._polygon.problem_extra_validators(self.id)
