@@ -1245,23 +1245,30 @@ class ValidatorTest:
     _EXPECTED_VERDICT = "expectedVerdict"
     _TESTSET = "testset"
     _GROUP = "group"
+    _RUN_VERDICT = "runVerdict"
+    _RUN_COMMENT = "runComment"
 
     @classmethod
     def from_json(cls, validator_test_json):
+        run_verdict = validator_test_json.get(ValidatorTest._RUN_VERDICT, None)
         return cls(
             index=validator_test_json[ValidatorTest._INDEX],
             input=validator_test_json[ValidatorTest._INPUT],
             expected_verdict=ValidatorTestVerdict[validator_test_json[ValidatorTest._EXPECTED_VERDICT]],
             testset=validator_test_json.get(ValidatorTest._TESTSET, None),
             group=validator_test_json.get(ValidatorTest._GROUP, None),
+            run_verdict=ValidatorTestRunVerdict[run_verdict] if run_verdict is not None else None,
+            run_comment=validator_test_json.get(ValidatorTest._RUN_COMMENT, None),
         )
 
-    def __init__(self, index, input, expected_verdict, testset=None, group=None):
+    def __init__(self, index, input, expected_verdict, testset=None, group=None, run_verdict=None, run_comment=None):
         self.index = index
         self.input = input
         self.expected_verdict = expected_verdict
         self.testset = testset
         self.group = group
+        self.run_verdict = run_verdict
+        self.run_comment = run_comment
 
 
 class CheckerTest:
@@ -1273,6 +1280,8 @@ class CheckerTest:
     _OUTPUT = "output"
     _ANSWER = "answer"
     _EXPECTED_VERDICT = "expectedVerdict"
+    _RUN_VERDICT = "runVerdict"
+    _RUN_COMMENT = "runComment"
 
     @classmethod
     def from_json(cls, checker_test_json):
@@ -1282,14 +1291,20 @@ class CheckerTest:
             output=checker_test_json[CheckerTest._OUTPUT],
             answer=checker_test_json[CheckerTest._ANSWER],
             expected_verdict=CheckerTestVerdict[checker_test_json[CheckerTest._EXPECTED_VERDICT]],
+            # Kept as a plain string: for completed runs Polygon returns the raw checker interop verdict
+            # name, which is not a closed set, so an enum would fail on custom checkers.
+            run_verdict=checker_test_json.get(CheckerTest._RUN_VERDICT, None),
+            run_comment=checker_test_json.get(CheckerTest._RUN_COMMENT, None),
         )
 
-    def __init__(self, index, input, output, answer, expected_verdict):
+    def __init__(self, index, input, output, answer, expected_verdict, run_verdict=None, run_comment=None):
         self.index = index
         self.input = input
         self.output = output
         self.answer = answer
         self.expected_verdict = expected_verdict
+        self.run_verdict = run_verdict
+        self.run_comment = run_comment
 
 
 class Request:
@@ -1506,6 +1521,16 @@ class PackageType(Enum):
 class ValidatorTestVerdict(Enum):
     VALID = 0
     INVALID = 1
+
+    def __str__(self):
+        return self.name
+
+
+class ValidatorTestRunVerdict(Enum):
+    VALID = 0
+    INVALID = 1
+    IN_QUEUE = 2
+    CANT_RUN = 3
 
     def __str__(self):
         return self.name
