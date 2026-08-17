@@ -395,31 +395,33 @@ class Polygon:
         )
         return response
 
-    def problem_test_input(self, problem_id, testset, test_index):
+    def problem_test_input(self, problem_id, testset, test_index, binary=False):
         """
-        Returns generated test input
+        Returns generated test input, as bytes if binary is true
         """
-        response = self._request_text(
+        response = self._request_body(
             self._PROBLEM_TEST_INPUT,
             args={
                 'problemId': problem_id,
                 'testset': testset,
                 'testIndex': test_index,
-            }
+            },
+            binary=binary
         )
         return response
 
-    def problem_test_answer(self, problem_id, testset, test_index):
+    def problem_test_answer(self, problem_id, testset, test_index, binary=False):
         """
-        Returns generated test answer
+        Returns generated test answer, as bytes if binary is true
         """
-        response = self._request_text(
+        response = self._request_body(
             self._PROBLEM_TEST_ANSWER,
             args={
                 'problemId': problem_id,
                 'testset': testset,
                 'testIndex': test_index,
-            }
+            },
+            binary=binary
         )
         return response
 
@@ -456,24 +458,26 @@ class Polygon:
         )
         return [TestGroup.from_json(js) for js in response.result]
 
-    def problem_view_file(self, problem_id, type, name):
-        response = self._request_text(
+    def problem_view_file(self, problem_id, type, name, binary=False):
+        response = self._request_body(
             self._PROBLEM_VIEW_FILE,
             args={
                 'problemId': problem_id,
                 'type': type,
                 'name': name
-            }
+            },
+            binary=binary
         )
         return response
 
-    def problem_view_solution(self, problem_id, name):
-        response = self._request_text(
+    def problem_view_solution(self, problem_id, name, binary=False):
+        response = self._request_body(
             self._PROBLEM_VIEW_SOLUTION,
             args={
                 'problemId': problem_id,
                 'name': name
-            }
+            },
+            binary=binary
         )
         return response
 
@@ -732,6 +736,11 @@ class Polygon:
         request = Request(self.request_config, method_name, args)
         return request.issue_raw()
 
+    def _request_body(self, method_name, args=None, binary=False):
+        if binary:
+            return self._request_raw(method_name, args)
+        return self._request_text(method_name, args)
+
 
 class Problem:
     """
@@ -853,11 +862,11 @@ class Problem:
     def view_test_group(self, testset, group=None):
         return self._polygon.problem_view_test_group(self.id, testset, group)
 
-    def view_file(self, type, name):
-        return self._polygon.problem_view_file(self.id, type, name)
+    def view_file(self, type, name, binary=False):
+        return self._polygon.problem_view_file(self.id, type, name, binary)
 
-    def view_solution(self, name):
-        return self._polygon.problem_view_solution(self.id, name)
+    def view_solution(self, name, binary=False):
+        return self._polygon.problem_view_solution(self.id, name, binary)
 
     def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None, check_existing=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type,
@@ -924,11 +933,11 @@ class Problem:
     def script(self, testset):
         return self._polygon.problem_script(self.id, testset)
 
-    def test_input(self, testset, test_index):
-        return self._polygon.problem_test_input(self.id, testset, test_index)
+    def test_input(self, testset, test_index, binary=False):
+        return self._polygon.problem_test_input(self.id, testset, test_index, binary)
 
-    def test_answer(self, testset, test_index):
-        return self._polygon.problem_test_answer(self.id, testset, test_index)
+    def test_answer(self, testset, test_index, binary=False):
+        return self._polygon.problem_test_answer(self.id, testset, test_index, binary)
 
     def save_script(self, testset, source):
         return self._polygon.problem_save_script(self.id, testset, source)
