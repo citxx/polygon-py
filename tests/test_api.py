@@ -13,6 +13,7 @@ from polygon_api import (
     PackageType,
     Polygon,
     ValidatorTest,
+    ValidatorTestRunVerdict,
     ValidatorTestVerdict,
 )
 from polygon_api.api import Request, RequestConfig, Response, _comma_separated
@@ -231,6 +232,72 @@ class TestValidatorTestParsing:
         assert test.testset is None
         assert test.group is None
 
+    def test_run_verdict_and_run_comment_are_parsed(self):
+        comment = 'FAIL Integer parameter [name=n] equals to 1000000000, violates the range [1, 1000000]'
+        test = ValidatorTest.from_json({
+            'index': 2,
+            'input': '1000000000',
+            'expectedVerdict': 'VALID',
+            'runVerdict': 'INVALID',
+            'runComment': comment,
+        })
+        assert test.run_verdict == ValidatorTestRunVerdict.INVALID
+        assert test.run_comment == comment
+
+    def test_run_fields_default_to_none_when_absent(self):
+        test = ValidatorTest.from_json({'index': 1, 'input': 'x', 'expectedVerdict': 'VALID'})
+        assert test.run_verdict is None
+        assert test.run_comment is None
+
+    @pytest.mark.parametrize('run_verdict', ['VALID', 'INVALID', 'IN_QUEUE', 'CANT_RUN'])
+    def test_every_documented_run_verdict_parses(self, run_verdict):
+        """
+        IN_QUEUE and CANT_RUN are the reason runVerdict cannot reuse ValidatorTestVerdict:
+        a test that has not been run yet is the ordinary case, not an edge case.
+        """
+        test = ValidatorTest.from_json({
+            'index': 1, 'input': 'x', 'expectedVerdict': 'VALID', 'runVerdict': run_verdict,
+        })
+        assert test.run_verdict == ValidatorTestRunVerdict[run_verdict]
+
+    def test_run_verdict_is_not_the_expected_verdict_enum(self):
+        test = ValidatorTest.from_json({
+            'index': 1, 'input': 'x', 'expectedVerdict': 'VALID', 'runVerdict': 'VALID',
+        })
+        assert test.run_verdict is ValidatorTestRunVerdict.VALID
+        assert test.run_verdict != ValidatorTestVerdict.VALID
+
+    def test_expected_verdict_is_parsed_independently_of_run_verdict(self):
+        test = ValidatorTest.from_json({
+            'index': 1, 'input': 'x', 'expectedVerdict': 'INVALID', 'runVerdict': 'VALID',
+        })
+        assert test.expected_verdict == ValidatorTestVerdict.INVALID
+        assert test.run_verdict == ValidatorTestRunVerdict.VALID
+
+    def test_run_comment_is_kept_without_a_run_verdict(self):
+        test = ValidatorTest.from_json({
+            'index': 1, 'input': 'x', 'expectedVerdict': 'VALID', 'runComment': 'ok',
+        })
+        assert test.run_verdict is None
+        assert test.run_comment == 'ok'
+
+    @pytest.mark.parametrize('run_verdict', ['VALID', 'INVALID', 'IN_QUEUE', 'CANT_RUN'])
+    def test_run_verdict_is_serialized_by_name(self, run_verdict):
+        assert str(ValidatorTestRunVerdict[run_verdict]) == run_verdict
+
+    def test_run_verdict_values_cover_the_expected_verdict_values(self):
+        assert set(ValidatorTestVerdict.__members__) <= set(ValidatorTestRunVerdict.__members__)
+
+    def test_positional_construction_stays_backwards_compatible(self):
+        test = ValidatorTest(2, '1 2', ValidatorTestVerdict.VALID, 'tests', 'first')
+        assert test.index == 2
+        assert test.input == '1 2'
+        assert test.expected_verdict == ValidatorTestVerdict.VALID
+        assert test.testset == 'tests'
+        assert test.group == 'first'
+        assert test.run_verdict is None
+        assert test.run_comment is None
+
 
 class TestCheckerTestParsing:
     def test_from_json(self):
@@ -253,3 +320,62 @@ class TestCheckerTestParsing:
             'index': 1, 'input': '', 'output': '', 'answer': '', 'expectedVerdict': verdict,
         })
         assert test.expected_verdict == CheckerTestVerdict[verdict]
+
+    def test_run_verdict_and_run_comment_are_parsed(self):
+        test = CheckerTest.from_json({
+            'index': 1,
+            'input': '1 2',
+            'output': '3',
+            'answer': '4',
+            'expectedVerdict': 'WRONG_ANSWER',
+            'runVerdict': 'WRONG_ANSWER',
+            'runComment': 'wrong answer expected 4, found 3',
+        })
+        assert test.run_verdict == 'WRONG_ANSWER'
+        assert test.run_comment == 'wrong answer expected 4, found 3'
+
+    def test_run_fields_default_to_none_when_absent(self):
+        test = CheckerTest.from_json({
+            'index': 1, 'input': '', 'output': '', 'answer': '', 'expectedVerdict': 'OK',
+        })
+        assert test.run_verdict is None
+        assert test.run_comment is None
+
+    def test_run_verdict_stays_a_plain_string(self):
+        test = CheckerTest.from_json({
+            'index': 1, 'input': '', 'output': '', 'answer': '', 'expectedVerdict': 'OK',
+            'runVerdict': 'OK',
+        })
+        assert isinstance(test.run_verdict, str)
+        assert test.run_verdict != CheckerTestVerdict.OK
+
+    @pytest.mark.parametrize('run_verdict', ['PARTIALLY_CORRECT', 'IN_QUEUE', 'CANT_RUN', 'UNEXPECTED_EOF'])
+    def test_run_verdict_outside_the_expected_verdict_set_parses(self, run_verdict):
+        """
+        A completed run returns the raw checker interop verdict name, which custom checkers
+        extend, so runVerdict must survive values CheckerTestVerdict does not know about.
+        """
+        assert run_verdict not in CheckerTestVerdict.__members__
+        test = CheckerTest.from_json({
+            'index': 1, 'input': '', 'output': '', 'answer': '', 'expectedVerdict': 'OK',
+            'runVerdict': run_verdict,
+        })
+        assert test.run_verdict == run_verdict
+
+    def test_expected_verdict_stays_an_enum_beside_a_string_run_verdict(self):
+        test = CheckerTest.from_json({
+            'index': 1, 'input': '', 'output': '', 'answer': '', 'expectedVerdict': 'CRASHED',
+            'runVerdict': 'OK',
+        })
+        assert test.expected_verdict == CheckerTestVerdict.CRASHED
+        assert test.run_verdict == 'OK'
+
+    def test_positional_construction_stays_backwards_compatible(self):
+        test = CheckerTest(1, '1 2', '3', '4', CheckerTestVerdict.OK)
+        assert test.index == 1
+        assert test.input == '1 2'
+        assert test.output == '3'
+        assert test.answer == '4'
+        assert test.expected_verdict == CheckerTestVerdict.OK
+        assert test.run_verdict is None
+        assert test.run_comment is None
