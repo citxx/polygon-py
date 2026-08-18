@@ -1,7 +1,12 @@
 """
 Tests for the parts of the wrapper that need no network access: argument
-formatting, local argument validation and JSON parsing.
+formatting, local argument validation, JSON parsing and the text/bytes split of
+response bodies (with requests.post replaced by a stub).
 """
+
+import functools
+import inspect
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,10 +17,12 @@ from polygon_api import (
     PackageState,
     PackageType,
     Polygon,
+    Problem,
     ValidatorTest,
     ValidatorTestRunVerdict,
     ValidatorTestVerdict,
 )
+from polygon_api import api
 from polygon_api.api import Request, RequestConfig, Response, _comma_separated
 
 
@@ -379,3 +386,256 @@ class TestCheckerTestParsing:
         assert test.expected_verdict == CheckerTestVerdict.OK
         assert test.run_verdict is None
         assert test.run_comment is None
+
+
+# Response bodies: the text/bytes split and the binary parameter.
+#
+# RAW_BODY is deliberately not valid UTF-8 and differs from TEXT_BODY. A regression that decodes
+# the bytes by hand instead of returning response.text (or encodes the text instead of returning
+# response.content) then fails loudly instead of quietly returning a wrong-but-decodable body.
+TEXT_BODY = 'plain text body\n'
+RAW_BODY = b'PK\x03\x04\xff\xfe'
+
+OK_JSON_BODY = '{"status": "OK", "result": null}'
+
+
+class _FakeResponse:
+    """Minimal stand-in for requests.Response."""
+
+    def __init__(self, text=TEXT_BODY, content=RAW_BODY, status_code=200):
+        self.text = text
+        self.content = content
+        self.status_code = status_code
+
+    def raise_for_status(self):
+        raise AssertionError('raise_for_status() must not be called for HTTP {}'.format(self.status_code))
+
+
+def _install_fake_post(monkeypatch, text=TEXT_BODY, content=RAW_BODY):
+    """Replaces requests.post with a stub and returns the list of recorded calls."""
+    calls = []
+
+    def post(url, files=None, **kwargs):
+        calls.append({'url': url, 'files': files})
+        return _FakeResponse(text, content)
+
+    monkeypatch.setattr(api.requests, 'post', post)
+    return calls
+
+
+@pytest.fixture
+def post_calls(monkeypatch):
+    return _install_fake_post(monkeypatch)
+
+
+@pytest.fixture
+def problem(polygon):
+    return Problem.from_json(polygon, {'id': 1})
+
+
+# Owner fixture, method name, leading positional arguments, expected Polygon API method.
+BINARY_ENDPOINTS = [
+    ('polygon', 'problem_view_file', (1, 'source', 'a.cpp'), 'problem.viewFile'),
+    ('polygon', 'problem_view_solution', (1, 'a.cpp'), 'problem.viewSolution'),
+    ('polygon', 'problem_test_input', (1, 'tests', 1), 'problem.testInput'),
+    ('polygon', 'problem_test_answer', (1, 'tests', 1), 'problem.testAnswer'),
+    ('problem', 'view_file', ('source', 'a.cpp'), 'problem.viewFile'),
+    ('problem', 'view_solution', ('a.cpp',), 'problem.viewSolution'),
+    ('problem', 'test_input', ('tests', 1), 'problem.testInput'),
+    ('problem', 'test_answer', ('tests', 1), 'problem.testAnswer'),
+]
+
+
+@pytest.fixture(
+    params=BINARY_ENDPOINTS,
+    ids=['{}.{}'.format(owner, name) for owner, name, _, _ in BINARY_ENDPOINTS],
+)
+def binary_endpoint(request, post_calls):
+    """Each entry point taking the optional binary parameter, pre-bound to valid arguments."""
+    owner, name, args, api_method = request.param
+    return SimpleNamespace(
+        call=functools.partial(getattr(request.getfixturevalue(owner), name), *args),
+        api_method=api_method,
+    )
+
+
+@pytest.fixture
+def request_body_dispatch(monkeypatch):
+    """Replaces the text and bytes request helpers with markers, making the dispatch observable."""
+    monkeypatch.setattr(api.Polygon, '_request_text', lambda self, method, args=None: ('text', method, args))
+    monkeypatch.setattr(api.Polygon, '_request_raw', lambda self, method, args=None: ('raw', method, args))
+
+
+class TestResponseBodyAccessors:
+    """
+    issue_text and issue_raw differ only in which attribute of the same requests.Response they
+    return, and both go through _issue.
+    """
+
+    def test_raw_body_would_not_survive_manual_decoding(self):
+        # Guards the fixture itself: the assertions below only mean something while the two
+        # bodies differ and the bytes cannot be decoded as UTF-8.
+        assert RAW_BODY != TEXT_BODY.encode('utf-8')
+        with pytest.raises(UnicodeDecodeError):
+            RAW_BODY.decode('utf-8')
+
+    def test_issue_text_returns_response_text(self, config, post_calls):
+        body = Request(config, 'problem.script').issue_text()
+        assert isinstance(body, str)
+        assert body == TEXT_BODY
+
+    def test_issue_raw_returns_response_content(self, config, post_calls):
+        body = Request(config, 'problem.package').issue_raw()
+        assert isinstance(body, bytes)
+        assert body == RAW_BODY
+
+    def test_issue_returns_the_response_as_is(self, config, post_calls):
+        response = Request(config, 'problem.viewFile')._issue()
+        assert response.text == TEXT_BODY
+        assert response.content == RAW_BODY
+
+    def test_both_accessors_go_through_issue(self, config, monkeypatch):
+        issued = []
+
+        def fake_issue(self):
+            issued.append(self.method_name)
+            return _FakeResponse()
+
+        monkeypatch.setattr(api.Request, '_issue', fake_issue)
+        request = Request(config, 'problem.viewFile')
+        assert request.issue_text() == TEXT_BODY
+        assert request.issue_raw() == RAW_BODY
+        assert issued == ['problem.viewFile', 'problem.viewFile']
+
+    def test_each_accessor_issues_exactly_one_request(self, config, post_calls):
+        Request(config, 'problem.viewFile').issue_text()
+        Request(config, 'problem.viewFile').issue_raw()
+        assert len(post_calls) == 2
+
+
+class TestRequestBodyDispatch:
+    """_request_body picks the text or the bytes helper and forwards the arguments unchanged."""
+
+    def test_binary_false_dispatches_to_request_text(self, polygon, request_body_dispatch):
+        result = polygon._request_body('problem.viewFile', {'problemId': 1}, binary=False)
+        assert result == ('text', 'problem.viewFile', {'problemId': 1})
+
+    def test_binary_true_dispatches_to_request_raw(self, polygon, request_body_dispatch):
+        result = polygon._request_body('problem.viewFile', {'problemId': 1}, binary=True)
+        assert result == ('raw', 'problem.viewFile', {'problemId': 1})
+
+    def test_omitted_binary_dispatches_to_request_text(self, polygon, request_body_dispatch):
+        result = polygon._request_body('problem.viewFile', {'problemId': 1})
+        assert result == ('text', 'problem.viewFile', {'problemId': 1})
+
+    def test_missing_args_are_forwarded_as_none(self, polygon, request_body_dispatch):
+        assert polygon._request_body('problem.viewFile') == ('text', 'problem.viewFile', None)
+
+    def test_binary_true_returns_the_undecoded_body(self, polygon, post_calls):
+        assert polygon._request_body('problem.viewFile', binary=True) == RAW_BODY
+
+    def test_binary_false_returns_the_decoded_body(self, polygon, post_calls):
+        assert polygon._request_body('problem.viewFile', binary=False) == TEXT_BODY
+
+
+class TestBinaryParameter:
+    """
+    Text by default, bytes on request, for all eight entry points: the four Polygon methods
+    returning a file body and their Problem wrappers.
+    """
+
+    def test_omitted_binary_returns_text(self, binary_endpoint):
+        body = binary_endpoint.call()
+        assert isinstance(body, str)
+        assert body == TEXT_BODY
+
+    def test_binary_false_returns_text(self, binary_endpoint):
+        body = binary_endpoint.call(binary=False)
+        assert isinstance(body, str)
+        assert body == TEXT_BODY
+
+    def test_binary_true_returns_bytes(self, binary_endpoint):
+        body = binary_endpoint.call(binary=True)
+        assert isinstance(body, bytes)
+        assert body == RAW_BODY
+
+    def test_binary_can_be_passed_positionally(self, binary_endpoint):
+        assert binary_endpoint.call(True) == RAW_BODY
+        assert binary_endpoint.call(False) == TEXT_BODY
+
+    def test_expected_api_method_is_called(self, binary_endpoint, post_calls):
+        binary_endpoint.call()
+        assert post_calls[-1]['url'] == 'https://example.invalid/api/' + binary_endpoint.api_method
+
+    def test_binary_is_not_sent_as_a_request_argument(self, binary_endpoint, post_calls):
+        binary_endpoint.call(binary=True)
+        assert b'binary' not in dict(post_calls[-1]['files'])
+
+
+class TestScriptIsAlwaysText:
+    """problem.script returns a generation script: text only, with no binary parameter."""
+
+    def test_script_returns_text(self, polygon, post_calls):
+        body = polygon.problem_script(1, 'tests')
+        assert isinstance(body, str)
+        assert body == TEXT_BODY
+
+    def test_problem_wrapper_returns_text(self, problem, post_calls):
+        body = problem.script('tests')
+        assert isinstance(body, str)
+        assert body == TEXT_BODY
+
+    def test_script_has_no_binary_parameter(self):
+        assert 'binary' not in inspect.signature(Polygon.problem_script).parameters
+        assert 'binary' not in inspect.signature(Problem.script).parameters
+
+    def test_script_rejects_a_binary_argument(self, polygon, problem, post_calls):
+        with pytest.raises(TypeError):
+            polygon.problem_script(1, 'tests', binary=True)
+        with pytest.raises(TypeError):
+            problem.script('tests', binary=True)
+
+
+class TestPackageIsAlwaysBytes:
+    """problem.package returns an archive: bytes only, with no binary parameter."""
+
+    def test_package_returns_bytes(self, polygon, post_calls):
+        body = polygon.problem_package(1, 2)
+        assert isinstance(body, bytes)
+        assert body == RAW_BODY
+
+    def test_problem_wrapper_returns_bytes(self, problem, post_calls):
+        body = problem.package(2)
+        assert isinstance(body, bytes)
+        assert body == RAW_BODY
+
+    def test_package_has_no_binary_parameter(self):
+        assert 'binary' not in inspect.signature(Polygon.problem_package).parameters
+        assert 'binary' not in inspect.signature(Problem.package).parameters
+
+    def test_package_rejects_a_binary_argument(self, polygon, problem, post_calls):
+        with pytest.raises(TypeError):
+            polygon.problem_package(1, 2, binary=True)
+        with pytest.raises(TypeError):
+            problem.package(2, binary=True)
+
+
+class TestBuildPackageArguments:
+    """
+    build_package takes verify before full. Both are sent as named API arguments, so swapping
+    them would silently build a package with the wrong flags.
+    """
+
+    def test_flags_are_sent_under_their_own_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_build_package(1, verify=True, full=False)
+        args = dict(calls[-1]['files'])
+        assert args[b'verify'] == b'true'
+        assert args[b'full'] == b'false'
+
+    def test_problem_wrapper_keeps_the_verify_full_order(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.build_package(True, False)
+        args = dict(calls[-1]['files'])
+        assert args[b'verify'] == b'true'
+        assert args[b'full'] == b'false'
