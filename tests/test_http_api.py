@@ -59,3 +59,24 @@ def test_view_file_returns_utf8_text(local_api_endpoint, polygon):
         'type': b'resource',
         'name': b'statement.txt',
     })
+
+
+def test_view_file_returns_exact_bytes_in_binary_mode(local_api_endpoint, polygon):
+    response_body = b'\x00\xffPNG\r\n'
+    local_api_endpoint.enqueue_response(
+        response_body,
+        headers={'Content-Type': 'application/octet-stream'},
+    )
+
+    result = polygon.problem_view_file(
+        PROBLEM_ID, FileType.RESOURCE, 'image.bin', binary=True,
+    )
+
+    assert result == response_body
+    assert isinstance(result, bytes)
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.viewFile', {
+        'problemId': b'42',
+        'type': b'resource',
+        'name': b'image.bin',
+    })
