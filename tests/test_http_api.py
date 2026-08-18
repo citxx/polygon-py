@@ -80,3 +80,24 @@ def test_view_file_returns_exact_bytes_in_binary_mode(local_api_endpoint, polygo
         'type': b'resource',
         'name': b'image.bin',
     })
+
+
+def test_save_file_uploads_exact_bytes_and_parses_result(local_api_endpoint, polygon):
+    file_content = b'\x00\xffPolygon file\r\n'
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":true}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_save_file(
+        PROBLEM_ID, FileType.RESOURCE, 'checker.bin', file_content,
+    )
+
+    assert result is True
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.saveFile', {
+        'problemId': b'42',
+        'type': b'resource',
+        'name': b'checker.bin',
+        'file': file_content,
+    })
