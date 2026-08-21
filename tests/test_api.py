@@ -19,6 +19,7 @@ from polygon_api import (
     Polygon,
     Problem,
     ProblemInfo,
+    Statement,
     ValidatorTest,
     ValidatorTestRunVerdict,
     ValidatorTestVerdict,
@@ -254,6 +255,52 @@ class TestProblemInfoParsing:
         })
         assert info.well_formed is None
         assert info.skip_duplicated_tests_validation is None
+
+
+class TestStatementParsing:
+    """
+    problem.statements returns showInReview and showCautionsAndGrammaticalFixes alongside the
+    statement text. Both are read leniently, so a statement without them still parses.
+    """
+
+    def test_from_json_with_all_fields(self):
+        statement = Statement.from_json({
+            'encoding': 'UTF-8',
+            'name': 'A + B',
+            'legend': 'Add two numbers.',
+            'input': 'Two integers.',
+            'output': 'Their sum.',
+            'scoring': 'Full points for a correct answer.',
+            'interaction': None,
+            'notes': 'Beware of overflow.',
+            'tutorial': 'Just print a + b.',
+            'showInReview': True,
+            'showCautionsAndGrammaticalFixes': False,
+        })
+        assert statement.encoding == 'UTF-8'
+        assert statement.name == 'A + B'
+        assert statement.legend == 'Add two numbers.'
+        assert statement.input == 'Two integers.'
+        assert statement.output == 'Their sum.'
+        assert statement.scoring == 'Full points for a correct answer.'
+        assert statement.interaction is None
+        assert statement.notes == 'Beware of overflow.'
+        assert statement.tutorial == 'Just print a + b.'
+        assert statement.show_in_review is True
+        assert statement.show_cautions_and_grammatical_fixes is False
+
+    def test_review_flags_default_to_none_when_absent(self):
+        statement = Statement.from_json({
+            'encoding': 'UTF-8',
+            'name': 'A + B',
+            'legend': 'Add two numbers.',
+            'input': 'Two integers.',
+            'output': 'Their sum.',
+            'notes': '',
+            'tutorial': '',
+        })
+        assert statement.show_in_review is None
+        assert statement.show_cautions_and_grammatical_fixes is None
 
 
 class TestValidatorTestParsing:
@@ -700,3 +747,30 @@ class TestUpdateInfoArguments:
         assert args[b'timeLimit'] == b'2000'
         assert b'wellFormed' not in args
         assert b'skipDuplicatedTestsValidation' not in args
+
+
+class TestSaveStatementArguments:
+    """
+    The two review flags are optional parameters of problem.saveStatement. Saving a statement
+    that leaves them unset must not mention them, otherwise editing a legend would also decide
+    whether the statement shows up in the problem review.
+    """
+
+    def test_review_flags_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_statement(1, 'english', Statement(
+            legend='Add two numbers.',
+            show_in_review=False,
+            show_cautions_and_grammatical_fixes=True,
+        ))
+        args = dict(calls[-1]['files'])
+        assert args[b'showInReview'] == b'false'
+        assert args[b'showCautionsAndGrammaticalFixes'] == b'true'
+
+    def test_review_flags_are_omitted_when_left_unset(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_statement(1, 'english', Statement(legend='Add two numbers.'))
+        args = dict(calls[-1]['files'])
+        assert args[b'legend'] == b'Add two numbers.'
+        assert b'showInReview' not in args
+        assert b'showCautionsAndGrammaticalFixes' not in args
