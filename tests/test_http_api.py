@@ -101,3 +101,24 @@ def test_save_file_uploads_exact_bytes_and_parses_result(local_api_endpoint, pol
         'name': b'checker.bin',
         'file': file_content,
     })
+
+
+def test_pin_is_sent_as_a_signed_field(local_api_endpoint, polygon):
+    """
+    The pin is an ordinary request argument, so it has to be part of apiSig as well: a pin
+    appended after signing would be rejected by Polygon.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":true}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_enable_points(PROBLEM_ID, True, pin='1234')
+
+    assert result is True
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.enablePoints', {
+        'problemId': b'42',
+        'enable': b'true',
+        'pin': b'1234',
+    })
