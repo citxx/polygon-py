@@ -796,10 +796,12 @@ class Problem:
     _ID_FIELD = 'id'
     _OWNER_FIELD = 'owner'
     _NAME_FIELD = 'name'
+    _NOTE_FIELD = 'note'
     _DELETED_FIELD = 'deleted'
     _FAVORITE_FIELD = 'favourite'
     _ACCESS_TYPE_FIELD = 'accessType'
     _REVISION_FIELD = 'revision'
+    _WORKING_COPY_REVISION_FIELD = 'workingCopyRevision'
     _LATEST_PACKAGE_FIELD = 'latestPackage'
     _MODIFIED_FIELD = 'modified'
 
@@ -816,10 +818,12 @@ class Problem:
             revision=problem_json.get(Problem._REVISION_FIELD),
             latest_package=problem_json.get(Problem._LATEST_PACKAGE_FIELD),
             modified=problem_json.get(Problem._MODIFIED_FIELD),
+            note=problem_json.get(Problem._NOTE_FIELD),
+            working_copy_revision=problem_json.get(Problem._WORKING_COPY_REVISION_FIELD),
         )
 
     def __init__(self, polygon, problem_id, owner, name, deleted, favorite, access_type, revision, latest_package,
-                 modified, pin=None):
+                 modified, note=None, working_copy_revision=None, pin=None):
         self._polygon = polygon
 
         self.id = problem_id
@@ -831,6 +835,8 @@ class Problem:
         self.revision = revision
         self.latest_package = latest_package
         self.modified = modified
+        self.note = note
+        self.working_copy_revision = working_copy_revision
         self.pin = pin
 
     def __str__(self):
