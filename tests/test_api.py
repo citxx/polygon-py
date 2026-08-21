@@ -220,6 +220,53 @@ class TestPackageParsing:
         assert str(PackageType.STANDARD) == 'standard'
 
 
+class TestProblemParsing:
+    """
+    problems.list, contest.problems and problem.create all return Problem objects. note and
+    workingCopyRevision are documented as possibly absent, so both are read leniently.
+    """
+
+    def test_from_json_with_all_fields(self, polygon):
+        problem = Problem.from_json(polygon, {
+            'id': 42,
+            'owner': 'mmirzayanov',
+            'name': 'a-plus-b',
+            'note': 'do not publish yet',
+            'deleted': False,
+            'favourite': True,
+            'accessType': 'OWNER',
+            'revision': 7,
+            'workingCopyRevision': 8,
+            'latestPackage': 6,
+            'modified': True,
+        })
+        assert problem.id == 42
+        assert problem.owner == 'mmirzayanov'
+        assert problem.name == 'a-plus-b'
+        assert problem.note == 'do not publish yet'
+        assert problem.deleted is False
+        assert problem.favorite is True
+        assert problem.access_type == 'OWNER'
+        assert problem.revision == 7
+        assert problem.working_copy_revision == 8
+        assert problem.latest_package == 6
+        assert problem.modified is True
+
+    def test_note_and_working_copy_revision_default_to_none_when_absent(self, polygon):
+        problem = Problem.from_json(polygon, {
+            'id': 42,
+            'owner': 'mmirzayanov',
+            'name': 'a-plus-b',
+            'deleted': False,
+            'favourite': False,
+            'accessType': 'READ',
+            'revision': 7,
+            'modified': False,
+        })
+        assert problem.note is None
+        assert problem.working_copy_revision is None
+
+
 class TestProblemInfoParsing:
     """
     problem.info returns wellFormed and skipDuplicatedTestsValidation next to the limits. Both
