@@ -6,6 +6,7 @@ response bodies (with requests.post replaced by a stub).
 
 import functools
 import inspect
+from collections import namedtuple
 from types import SimpleNamespace
 
 import pytest
@@ -13,11 +14,15 @@ import pytest
 from polygon_api import (
     CheckerTest,
     CheckerTestVerdict,
+    FileType,
     Package,
     PackageState,
     PackageType,
     Polygon,
     Problem,
+    ProblemInfo,
+    SolutionTag,
+    Statement,
     ValidatorTest,
     ValidatorTestRunVerdict,
     ValidatorTestVerdict,
@@ -639,3 +644,254 @@ class TestBuildPackageArguments:
         args = dict(calls[-1]['files'])
         assert args[b'verify'] == b'true'
         assert args[b'full'] == b'false'
+
+
+# The pin parameter. Polygon docs, https://codeforces.github.io/polygon-misc/API:
+# "To access problem-specific API methods, add a problemId parameter to your request. [...] If the
+# problem has the pin code, add the pin parameter to your request." The same holds for contest
+# methods and their contestId. problem.create takes no pin: it has no problem to unlock yet.
+#
+# One row per entry point. polygon_method is None for the Problem shortcuts that have no method of
+# their own on Polygon, and result is the JSON the wrapper has to parse out of the response.
+PinRow = namedtuple('PinRow', ['polygon_method', 'polygon_args', 'problem_method', 'problem_args', 'result'])
+
+PROBLEM_INFO_RESULT = ('{"inputFile": "in.txt", "outputFile": "out.txt", "interactive": false, '
+                       '"timeLimit": 1000, "memoryLimit": 256}')
+FILES_RESULT = '{"resourceFiles": [], "sourceFiles": [], "auxFiles": []}'
+EMPTY_LIST_RESULT = '[]'
+EMPTY_OBJECT_RESULT = '{}'
+NULL_RESULT = 'null'
+
+PIN_ROWS = [
+    PinRow('problem_info', (1,), 'info', (), PROBLEM_INFO_RESULT),
+    PinRow('problem_update_info', (1, ProblemInfo()), 'update_info', (ProblemInfo(),), NULL_RESULT),
+    PinRow('problem_update_working_copy', (1,), 'update_working_copy', (), NULL_RESULT),
+    PinRow('problem_discard_working_copy', (1,), 'discard_working_copy', (), NULL_RESULT),
+    PinRow('problem_commit_changes', (1,), 'commit_changes', (), NULL_RESULT),
+    PinRow('problem_view_tags', (1,), 'tags', (), NULL_RESULT),
+    PinRow('problem_save_tags', (1, ['dp']), 'save_tags', (['dp'],), NULL_RESULT),
+    PinRow('problem_view_general_description', (1,), 'general_description', (), NULL_RESULT),
+    PinRow('problem_save_general_description', (1, 'text'), 'save_general_description', ('text',), NULL_RESULT),
+    PinRow('problem_view_general_tutorial', (1,), 'general_tutorial', (), NULL_RESULT),
+    PinRow('problem_save_general_tutorial', (1, 'text'), 'save_general_tutorial', ('text',), NULL_RESULT),
+    PinRow('problem_statements', (1,), 'statements', (), EMPTY_OBJECT_RESULT),
+    PinRow('problem_save_statement', (1, 'english', Statement()), 'save_statement',
+           ('english', Statement()), NULL_RESULT),
+    PinRow('problem_statement_resources', (1,), 'statement_resources', (), NULL_RESULT),
+    PinRow('problem_save_statement_resource', (1, 'olymp.sty', 'body'), 'save_statement_resource',
+           ('olymp.sty', 'body'), NULL_RESULT),
+    PinRow('problem_enable_groups', (1, 'tests', True), 'enable_groups', ('tests', True), NULL_RESULT),
+    PinRow('problem_enable_points', (1, True), 'enable_points', (True,), NULL_RESULT),
+    PinRow('problem_save_test', (1, 'tests', 1, '1 2'), 'save_test', ('tests', 1, '1 2'), NULL_RESULT),
+    PinRow('problem_set_test_group', (1, 'tests', 'first', 1), 'set_test_group',
+           ('tests', 'first', 1), NULL_RESULT),
+    PinRow('problem_solutions', (1,), 'solutions', (), EMPTY_LIST_RESULT),
+    PinRow('problem_files', (1,), 'files', (), FILES_RESULT),
+    PinRow(None, None, 'files_resource', (), FILES_RESULT),
+    PinRow(None, None, 'files_source', (), FILES_RESULT),
+    PinRow(None, None, 'files_aux', (), FILES_RESULT),
+    PinRow('problem_tests', (1, 'tests'), 'tests', ('tests',), EMPTY_LIST_RESULT),
+    PinRow('problem_script', (1, 'tests'), 'script', ('tests',), NULL_RESULT),
+    PinRow('problem_test_input', (1, 'tests', 1), 'test_input', ('tests', 1), NULL_RESULT),
+    PinRow('problem_test_answer', (1, 'tests', 1), 'test_answer', ('tests', 1), NULL_RESULT),
+    PinRow('problem_save_test_group', (1, 'tests', 'first'), 'save_test_group', ('tests', 'first'), NULL_RESULT),
+    PinRow('problem_view_test_group', (1, 'tests'), 'view_test_group', ('tests',), EMPTY_LIST_RESULT),
+    PinRow('problem_view_file', (1, FileType.SOURCE, 'a.cpp'), 'view_file',
+           (FileType.SOURCE, 'a.cpp'), NULL_RESULT),
+    PinRow('problem_view_solution', (1, 'a.cpp'), 'view_solution', ('a.cpp',), NULL_RESULT),
+    PinRow('problem_save_file', (1, FileType.SOURCE, 'a.cpp', 'int main() {}'), 'save_file',
+           (FileType.SOURCE, 'a.cpp', 'int main() {}'), NULL_RESULT),
+    PinRow('problem_save_solution', (1, 'a.cpp', 'int main() {}', SolutionTag.MA), 'save_solution',
+           ('a.cpp', 'int main() {}', SolutionTag.MA), NULL_RESULT),
+    PinRow('problem_save_script', (1, 'tests', 'gen 1'), 'save_script', ('tests', 'gen 1'), NULL_RESULT),
+    PinRow('problem_edit_solution_extra_tags', (1, False, 'a.cpp', 'tests'), 'edit_solution_extra_tags',
+           (False, 'a.cpp', 'tests'), NULL_RESULT),
+    PinRow('problem_checker', (1,), 'checker', (), NULL_RESULT),
+    PinRow('problem_set_checker', (1, 'check.cpp'), 'set_checker', ('check.cpp',), NULL_RESULT),
+    PinRow('problem_checker_tests', (1,), 'checker_tests', (), EMPTY_LIST_RESULT),
+    PinRow('problem_save_checker_test', (1, 1), 'save_checker_test', (1,), NULL_RESULT),
+    PinRow('problem_validator', (1,), 'validator', (), NULL_RESULT),
+    PinRow('problem_set_validator', (1, 'val.cpp'), 'set_validator', ('val.cpp',), NULL_RESULT),
+    PinRow('problem_extra_validators', (1,), 'extra_validators', (), NULL_RESULT),
+    PinRow('problem_validator_tests', (1,), 'validator_tests', (), EMPTY_LIST_RESULT),
+    PinRow('problem_save_validator_test', (1, 1), 'save_validator_test', (1,), NULL_RESULT),
+    PinRow('problem_interactor', (1,), 'interactor', (), NULL_RESULT),
+    PinRow('problem_set_interactor', (1, 'int.cpp'), 'set_interactor', ('int.cpp',), NULL_RESULT),
+    PinRow('problem_packages', (1,), 'packages', (), EMPTY_LIST_RESULT),
+    PinRow('problem_package', (1, 2), 'package', (2,), NULL_RESULT),
+    PinRow('problem_build_package', (1, True, False), 'build_package', (True, False), NULL_RESULT),
+]
+
+POLYGON_PIN_ROWS = [row for row in PIN_ROWS if row.polygon_method is not None]
+
+
+def _ok_body(result):
+    return '{"status": "OK", "result": %s}' % result
+
+
+def _sent_args(calls):
+    return dict(calls[-1]['files'])
+
+
+@pytest.fixture(
+    params=POLYGON_PIN_ROWS,
+    ids=[row.polygon_method for row in POLYGON_PIN_ROWS],
+)
+def polygon_pin_endpoint(request, polygon, monkeypatch):
+    """Each problem-specific Polygon method, pre-bound to valid arguments."""
+    row = request.param
+    calls = _install_fake_post(monkeypatch, text=_ok_body(row.result))
+    return SimpleNamespace(
+        call=functools.partial(getattr(polygon, row.polygon_method), *row.polygon_args),
+        calls=calls,
+    )
+
+
+@pytest.fixture(
+    params=PIN_ROWS,
+    ids=[row.problem_method for row in PIN_ROWS],
+)
+def problem_pin_endpoint(request, problem, monkeypatch):
+    """Each public Problem method, pre-bound to valid arguments."""
+    row = request.param
+    calls = _install_fake_post(monkeypatch, text=_ok_body(row.result))
+    return SimpleNamespace(
+        problem=problem,
+        call=functools.partial(getattr(problem, row.problem_method), *row.problem_args),
+        calls=calls,
+    )
+
+
+class TestPinCoverage:
+    """The tables below drive every pin test, so a new method without a pin fails here first."""
+
+    def test_every_problem_specific_polygon_method_is_covered(self):
+        covered = {row.polygon_method for row in POLYGON_PIN_ROWS}
+        assert covered == {name for name in dir(Polygon) if name.startswith('problem_')} - {'problem_create'}
+
+    def test_every_public_problem_method_is_covered(self):
+        covered = {row.problem_method for row in PIN_ROWS}
+        assert covered == {name for name in dir(Problem) if not name.startswith('_')} - {'from_json'}
+
+
+class TestPolygonPin:
+    def test_pin_is_sent_as_a_request_argument(self, polygon_pin_endpoint):
+        polygon_pin_endpoint.call(pin='1234')
+        assert _sent_args(polygon_pin_endpoint.calls)[b'pin'] == b'1234'
+
+    def test_pin_is_omitted_when_not_passed(self, polygon_pin_endpoint):
+        polygon_pin_endpoint.call()
+        assert b'pin' not in _sent_args(polygon_pin_endpoint.calls)
+
+
+class TestProblemPin:
+    def test_the_pin_field_is_sent(self, problem_pin_endpoint):
+        problem_pin_endpoint.problem.pin = '1234'
+        problem_pin_endpoint.call()
+        assert _sent_args(problem_pin_endpoint.calls)[b'pin'] == b'1234'
+
+    def test_the_pin_argument_is_sent_without_a_field(self, problem_pin_endpoint):
+        problem_pin_endpoint.call(pin='1234')
+        assert _sent_args(problem_pin_endpoint.calls)[b'pin'] == b'1234'
+
+    def test_the_pin_argument_overrides_the_field(self, problem_pin_endpoint):
+        problem_pin_endpoint.problem.pin = '1234'
+        problem_pin_endpoint.call(pin='5678')
+        assert _sent_args(problem_pin_endpoint.calls)[b'pin'] == b'5678'
+
+    def test_the_overridden_field_is_left_alone(self, problem_pin_endpoint):
+        problem_pin_endpoint.problem.pin = '1234'
+        problem_pin_endpoint.call(pin='5678')
+        assert problem_pin_endpoint.problem.pin == '1234'
+
+    def test_no_pin_is_sent_without_a_field_or_an_argument(self, problem_pin_endpoint):
+        problem_pin_endpoint.call()
+        assert b'pin' not in _sent_args(problem_pin_endpoint.calls)
+
+    def test_the_field_defaults_to_none(self, problem):
+        assert problem.pin is None
+
+    def test_positional_construction_stays_backwards_compatible(self, polygon):
+        problem = Problem(polygon, 1, 'owner', 'name', False, False, 'WRITE', 3, 2, False)
+        assert problem.id == 1
+        assert problem.pin is None
+
+
+class TestMethodsWithoutPin:
+    """problems.list and problem.create are not problem-specific, so neither takes a pin."""
+
+    def test_problems_list_rejects_a_pin(self, polygon, post_calls):
+        with pytest.raises(TypeError):
+            polygon.problems_list(pin='1234')
+
+    def test_problem_create_rejects_a_pin(self, polygon, post_calls):
+        with pytest.raises(TypeError):
+            polygon.problem_create('name', pin='1234')
+
+
+class TestContestPin:
+    def test_pin_is_sent_as_a_request_argument(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_OBJECT_RESULT))
+        polygon.contest_problems(1, pin='1234')
+        assert _sent_args(calls)[b'pin'] == b'1234'
+
+    def test_pin_is_omitted_when_not_passed(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_OBJECT_RESULT))
+        polygon.contest_problems(1)
+        assert b'pin' not in _sent_args(calls)
+
+    def test_the_contest_pin_does_not_become_the_problem_pin(self, polygon, monkeypatch):
+        """
+        The docs describe the contest pin and the problem pin as separate codes, so a contest pin
+        must not be reused for the problems it returns.
+        """
+        _install_fake_post(monkeypatch, text=_ok_body('{"A": {"id": 1}}'))
+        problems = polygon.contest_problems(1, pin='1234')
+        assert problems['A'].pin is None
+
+
+MANUAL_TEST_RESULT = '[{"index": 1, "manual": true, "input": "1 2", "useInStatements": false}]'
+GENERATED_TEST_RESULT = '[{"index": 1, "manual": false, "scriptLine": "gen 1", "useInStatements": false}]'
+
+
+class TestTestObjectPin:
+    """
+    Test objects issue their own requests through ManualTest.save, so they have to carry the pin
+    of the problem they were listed from.
+    """
+
+    def test_a_test_carries_the_pin_of_its_problem(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
+        problem.pin = '1234'
+        assert problem.tests('tests')[0].pin == '1234'
+
+    def test_a_generated_test_carries_the_pin_of_its_problem(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(GENERATED_TEST_RESULT))
+        problem.pin = '1234'
+        assert problem.tests('tests')[0].pin == '1234'
+
+    def test_a_test_listed_without_a_pin_has_none(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
+        assert problem.tests('tests')[0].pin is None
+
+    def test_save_sends_the_pin_of_the_problem(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
+        problem.pin = '1234'
+        problem.tests('tests')[0].save()
+        assert _sent_args(calls)[b'pin'] == b'1234'
+
+    def test_save_sends_the_pin_of_the_listing_polygon_call(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
+        polygon.problem_tests(1, 'tests', pin='1234')[0].save()
+        assert _sent_args(calls)[b'pin'] == b'1234'
+
+    def test_the_save_argument_overrides_the_carried_pin(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
+        problem.pin = '1234'
+        problem.tests('tests')[0].save(pin='5678')
+        assert _sent_args(calls)[b'pin'] == b'5678'
+
+    def test_save_sends_no_pin_without_one(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
+        problem.tests('tests')[0].save()
+        assert b'pin' not in _sent_args(calls)

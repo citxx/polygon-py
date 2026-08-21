@@ -107,16 +107,16 @@ class Polygon:
         )
         return Problem.from_json(self, response.result)
 
-    def problem_info(self, problem_id):
+    def problem_info(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_INFO,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return ProblemInfo.from_json(response.result)
 
-    def problem_update_info(self, problem_id, problem_info):
+    def problem_update_info(self, problem_id, problem_info, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -128,29 +128,30 @@ class Polygon:
                 'interactive': problem_info.interactive,  # TODO
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_update_working_copy(self, problem_id):
+    def problem_update_working_copy(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_UPDATE_WORKING_COPY,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return response.result
 
-    def problem_discard_working_copy(self, problem_id):
+    def problem_discard_working_copy(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_DISCARD_WORKING_COPY,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return response.result
 
-    def problem_commit_changes(self, problem_id, minor_changes=None, message=None):
+    def problem_commit_changes(self, problem_id, minor_changes=None, message=None, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -159,20 +160,21 @@ class Polygon:
                 'problemId': problem_id,
                 'minorChanges': minor_changes,
                 'message': message,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_view_tags(self, problem_id):
+    def problem_view_tags(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_TAGS,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return response.result
 
-    def problem_save_tags(self, problem_id, tags):
+    def problem_save_tags(self, problem_id, tags, pin=None):
         """
         """
         tags_str = ','.join(tags)
@@ -181,20 +183,21 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'tags': tags_str,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_view_general_description(self, problem_id):
+    def problem_view_general_description(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_GENERAL_DESCRIPTION,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return response.result
 
-    def problem_save_general_description(self, problem_id, description):
+    def problem_save_general_description(self, problem_id, description, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -202,20 +205,21 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'description': description,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_view_general_tutorial(self, problem_id):
+    def problem_view_general_tutorial(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_GENERAL_TUTORIAL,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return response.result
 
-    def problem_save_general_tutorial(self, problem_id, tutorial):
+    def problem_save_general_tutorial(self, problem_id, tutorial, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -223,22 +227,24 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'tutorial': tutorial,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_statements(self, problem_id):
+    def problem_statements(self, problem_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_STATEMENTS,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return {lang: Statement.from_json(statement_json) for lang, statement_json in response.result.items()}
 
-    def problem_save_statement(self, problem_id, lang, problem_statement):
+    def problem_save_statement(self, problem_id, lang, problem_statement, pin=None):
         """
         """
         if not isinstance(problem_statement, Statement):
@@ -258,20 +264,22 @@ class Polygon:
                 'interaction': problem_statement.interaction,
                 'notes': problem_statement.notes,
                 'tutorial': problem_statement.tutorial,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_statement_resources(self, problem_id):
+    def problem_statement_resources(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_STATEMENT_RESOURCES,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_save_statement_resource(self, problem_id, name, file, check_existing=None):
+    def problem_save_statement_resource(self, problem_id, name, file, check_existing=None, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_STATEMENT_RESOURCE,
             args={
@@ -279,11 +287,12 @@ class Polygon:
                 'name': name,
                 'file': file,
                 'checkExisting': check_existing,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_enable_groups(self, problem_id, testset, enable):
+    def problem_enable_groups(self, problem_id, testset, enable, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -292,11 +301,12 @@ class Polygon:
                 'problemId': problem_id,
                 'testset': testset,
                 'enable': enable,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_enable_points(self, problem_id, enable):
+    def problem_enable_points(self, problem_id, enable, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -304,6 +314,7 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'enable': enable,
+                'pin': pin,
             },
         )
         return response.result
@@ -311,7 +322,7 @@ class Polygon:
     def problem_save_test(self, problem_id, testset, test_index, test_input, test_group=None, test_points=None,
                           test_description=None, test_use_in_statements=None, test_input_for_statements=None,
                           test_output_for_statements=None, verify_input_output_for_statements=None,
-                          check_existing=None):
+                          check_existing=None, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -329,11 +340,12 @@ class Polygon:
                 'testOutputForStatements': test_output_for_statements,
                 'verifyInputOutputForStatements': verify_input_output_for_statements,
                 'checkExisting': check_existing,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_set_test_group(self, problem_id, testset, test_group, test_index=None, test_indices=None):
+    def problem_set_test_group(self, problem_id, testset, test_group, test_index=None, test_indices=None, pin=None):
         if test_index is None and test_indices is None:
             raise ValueError("Either test_index or test_indices must be specified")
         if test_index is not None and test_indices is not None:
@@ -349,40 +361,44 @@ class Polygon:
                 'testGroup': test_group,
                 'testIndex': test_index,
                 'testIndices': test_indices,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_solutions(self, problem_id):
+    def problem_solutions(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SOLUTIONS,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             }
         )
         return [Solution.from_json(js) for js in response.result]
 
-    def problem_files(self, problem_id):
+    def problem_files(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_FILES,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             }
         )
         return {type: [File.from_json(js) for js in response.result[str(type) + 'Files']] for type in FileType}
 
-    def problem_tests(self, problem_id, testset, no_inputs=None):
+    def problem_tests(self, problem_id, testset, no_inputs=None, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_TESTS,
             args={
                 'problemId': problem_id,
                 'testset': testset,
                 'noInputs': no_inputs,
+                'pin': pin,
             }
         )
-        return [Test.from_json(self, problem_id, testset, js) for js in response.result]
+        return [Test.from_json(self, problem_id, testset, js, pin) for js in response.result]
 
-    def problem_script(self, problem_id, testset):
+    def problem_script(self, problem_id, testset, pin=None):
         """
         Returns test generation script
         """
@@ -391,11 +407,12 @@ class Polygon:
             args={
                 'problemId': problem_id,
                 'testset': testset,
+                'pin': pin,
             }
         )
         return response
 
-    def problem_test_input(self, problem_id, testset, test_index, binary=False):
+    def problem_test_input(self, problem_id, testset, test_index, binary=False, pin=None):
         """
         Returns generated test input, as bytes if binary is true
         """
@@ -405,12 +422,13 @@ class Polygon:
                 'problemId': problem_id,
                 'testset': testset,
                 'testIndex': test_index,
+                'pin': pin,
             },
             binary=binary
         )
         return response
 
-    def problem_test_answer(self, problem_id, testset, test_index, binary=False):
+    def problem_test_answer(self, problem_id, testset, test_index, binary=False, pin=None):
         """
         Returns generated test answer, as bytes if binary is true
         """
@@ -420,13 +438,14 @@ class Polygon:
                 'problemId': problem_id,
                 'testset': testset,
                 'testIndex': test_index,
+                'pin': pin,
             },
             binary=binary
         )
         return response
 
     def problem_save_test_group(self, problem_id, testset, group, points_policy=None, feedback_policy=None,
-                                dependencies=None):
+                                dependencies=None, pin=None):
         dependencies = _comma_separated(dependencies)
         if points_policy is not None and not isinstance(points_policy, PointsPolicy):
             raise ValueError(
@@ -443,46 +462,50 @@ class Polygon:
                 'pointsPolicy': points_policy,
                 'feedbackPolicy': feedback_policy,
                 'dependencies': dependencies,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_view_test_group(self, problem_id, testset, group=None):
+    def problem_view_test_group(self, problem_id, testset, group=None, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_VIEW_TEST_GROUP,
             args={
                 'problemId': problem_id,
                 'testset': testset,
                 'group': group,
+                'pin': pin,
             },
         )
         return [TestGroup.from_json(js) for js in response.result]
 
-    def problem_view_file(self, problem_id, type, name, binary=False):
+    def problem_view_file(self, problem_id, type, name, binary=False, pin=None):
         response = self._request_body(
             self._PROBLEM_VIEW_FILE,
             args={
                 'problemId': problem_id,
                 'type': type,
-                'name': name
+                'name': name,
+                'pin': pin,
             },
             binary=binary
         )
         return response
 
-    def problem_view_solution(self, problem_id, name, binary=False):
+    def problem_view_solution(self, problem_id, name, binary=False, pin=None):
         response = self._request_body(
             self._PROBLEM_VIEW_SOLUTION,
             args={
                 'problemId': problem_id,
-                'name': name
+                'name': name,
+                'pin': pin,
             },
             binary=binary
         )
         return response
 
     def problem_save_file(self, problem_id, type, name, file, source_type=None, resource_advanced_properties=None,
-                          check_existing=None):
+                          check_existing=None, pin=None):
         stages = None if resource_advanced_properties is None or resource_advanced_properties.stages is None else \
             ';'.join(map(str, resource_advanced_properties.stages))
         assets = None if resource_advanced_properties is None or resource_advanced_properties.assets is None else \
@@ -499,11 +522,12 @@ class Polygon:
                 'stages': stages,
                 'assets': assets,
                 'checkExisting': check_existing,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_save_solution(self, problem_id, name, file, tag, source_type=None, check_existing=None):
+    def problem_save_solution(self, problem_id, name, file, tag, source_type=None, check_existing=None, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_SOLUTION,
             args={
@@ -513,11 +537,12 @@ class Polygon:
                 'sourceType': source_type,
                 'tag': tag,
                 'checkExisting': check_existing,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_save_script(self, problem_id, testset, source):
+    def problem_save_script(self, problem_id, testset, source, pin=None):
         """
         Edit test generation script
         """
@@ -527,11 +552,13 @@ class Polygon:
                 'problemId': problem_id,
                 'testset': testset,
                 'source': source,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_edit_solution_extra_tags(self, problem_id, remove, name, testset=None, test_group=None, tag=None):
+    def problem_edit_solution_extra_tags(self, problem_id, remove, name, testset=None, test_group=None,
+                                         tag=None, pin=None):
         if (testset is None) == (test_group is None):
             raise ValueError("Exactly one of testset or test_group must be specified")
         if tag is not None and not isinstance(tag, SolutionTag):
@@ -546,40 +573,44 @@ class Polygon:
                 'testset': testset,
                 'testGroup': test_group,
                 'tag': tag,
+                'pin': pin,
             }
         )
         return response.result
 
-    def problem_checker(self, problem_id):
+    def problem_checker(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_CHECKER,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_set_checker(self, problem_id, checker):
+    def problem_set_checker(self, problem_id, checker, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SET_CHECKER,
             args={
                 'problemId': problem_id,
                 'checker': checker,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_checker_tests(self, problem_id):
+    def problem_checker_tests(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_CHECKER_TESTS,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return [CheckerTest.from_json(js) for js in response.result]
 
     def problem_save_checker_test(self, problem_id, test_index, test_input=None, test_output=None,
-                                  test_answer=None, test_verdict=None, check_existing=None):
+                                  test_answer=None, test_verdict=None, check_existing=None, pin=None):
         if test_verdict is not None and not isinstance(test_verdict, CheckerTestVerdict):
             raise ValueError(
                 "Expected CheckerTestVerdict instance for test_verdict argument, but %s found" % type(test_verdict))
@@ -593,49 +624,54 @@ class Polygon:
                 'testAnswer': test_answer,
                 'testVerdict': test_verdict,
                 'checkExisting': check_existing,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_validator(self, problem_id):
+    def problem_validator(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_VALIDATOR,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_set_validator(self, problem_id, validator):
+    def problem_set_validator(self, problem_id, validator, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SET_VALIDATOR,
             args={
                 'problemId': problem_id,
                 'validator': validator,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_extra_validators(self, problem_id):
+    def problem_extra_validators(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_EXTRA_VALIDATORS,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_validator_tests(self, problem_id):
+    def problem_validator_tests(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_VALIDATOR_TESTS,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return [ValidatorTest.from_json(js) for js in response.result]
 
     def problem_save_validator_test(self, problem_id, test_index, test_input=None, test_verdict=None,
-                                    test_group=None, testset=None, check_existing=None):
+                                    test_group=None, testset=None, check_existing=None, pin=None):
         if test_verdict is not None and not isinstance(test_verdict, ValidatorTestVerdict):
             raise ValueError(
                 "Expected ValidatorTestVerdict instance for test_verdict argument, but %s found" % type(test_verdict))
@@ -649,50 +685,54 @@ class Polygon:
                 'testGroup': test_group,
                 'testset': testset,
                 'checkExisting': check_existing,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_interactor(self, problem_id):
+    def problem_interactor(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_INTERACTOR,
             args={
                 'problemId': problem_id,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_set_interactor(self, problem_id, interactor):
+    def problem_set_interactor(self, problem_id, interactor, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SET_INTERACTOR,
             args={
                 'problemId': problem_id,
                 'interactor': interactor,
+                'pin': pin,
             },
         )
         return response.result
 
-    def problem_packages(self, problem_id):
+    def problem_packages(self, problem_id, pin=None):
         """
         Returns list of packages
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_PACKAGES,
-            args={'problemId': problem_id},
+            args={'problemId': problem_id, 'pin': pin},
         )
         return [Package.from_json(js) for js in response.result]
 
-    def problem_package(self, problem_id, package_id, type=None):
+    def problem_package(self, problem_id, package_id, type=None, pin=None):
         return self._request_raw(
             self._PROBLEM_PACKAGE,
             args={
                 'problemId': problem_id,
                 'packageId': package_id,
                 'type': type,
+                'pin': pin,
             },
         )
 
-    def problem_build_package(self, problem_id, verify, full):
+    def problem_build_package(self, problem_id, verify, full, pin=None):
         """
         Start building a package
         """
@@ -702,16 +742,17 @@ class Polygon:
                 'problemId': problem_id,
                 'verify': verify,
                 'full': full,
+                'pin': pin,
             }
         )
         return response.result
 
-    def contest_problems(self, contest_id):
+    def contest_problems(self, contest_id, pin=None):
         """
         """
         response = self._request_ok_or_raise(
             self._CONTEST_PROBLEMS,
-            args={'contestId': contest_id},
+            args={'contestId': contest_id, 'pin': pin},
         )
         return {
             name: Problem.from_json(self, p_json)
@@ -774,7 +815,7 @@ class Problem:
         )
 
     def __init__(self, polygon, problem_id, owner, name, deleted, favorite, access_type, revision, latest_package,
-                 modified):
+                 modified, pin=None):
         self._polygon = polygon
 
         self.id = problem_id
@@ -786,170 +827,187 @@ class Problem:
         self.revision = revision
         self.latest_package = latest_package
         self.modified = modified
+        self.pin = pin
 
     def __str__(self):
         return '{}:{}'.format(self.name, self.id)
 
-    def info(self):
-        return self._polygon.problem_info(self.id)
+    def _resolve_pin(self, pin):
+        """
+        The pin to send: the one passed to a single call wins, otherwise the pin of the problem.
+        """
+        return self.pin if pin is None else pin
 
-    def update_info(self, problem_info):
-        return self._polygon.problem_update_info(self.id, problem_info)
+    def info(self, pin=None):
+        return self._polygon.problem_info(self.id, pin=self._resolve_pin(pin))
 
-    def update_working_copy(self):
-        return self._polygon.problem_update_working_copy(self.id)
+    def update_info(self, problem_info, pin=None):
+        return self._polygon.problem_update_info(self.id, problem_info, pin=self._resolve_pin(pin))
 
-    def discard_working_copy(self):
-        return self._polygon.problem_discard_working_copy(self.id)
+    def update_working_copy(self, pin=None):
+        return self._polygon.problem_update_working_copy(self.id, pin=self._resolve_pin(pin))
 
-    def commit_changes(self, minor_changes=None, message=None):
-        return self._polygon.problem_commit_changes(self.id, minor_changes, message)
+    def discard_working_copy(self, pin=None):
+        return self._polygon.problem_discard_working_copy(self.id, pin=self._resolve_pin(pin))
 
-    def tags(self):
-        return self._polygon.problem_view_tags(self.id)
+    def commit_changes(self, minor_changes=None, message=None, pin=None):
+        return self._polygon.problem_commit_changes(self.id, minor_changes, message,
+                                                    pin=self._resolve_pin(pin))
 
-    def save_tags(self, tags):
-        return self._polygon.problem_save_tags(self.id, tags)
+    def tags(self, pin=None):
+        return self._polygon.problem_view_tags(self.id, pin=self._resolve_pin(pin))
 
-    def general_description(self):
-        return self._polygon.problem_view_general_description(self.id)
+    def save_tags(self, tags, pin=None):
+        return self._polygon.problem_save_tags(self.id, tags, pin=self._resolve_pin(pin))
 
-    def save_general_description(self, description):
-        return self._polygon.problem_save_general_description(self.id, description)
+    def general_description(self, pin=None):
+        return self._polygon.problem_view_general_description(self.id, pin=self._resolve_pin(pin))
 
-    def general_tutorial(self):
-        return self._polygon.problem_view_general_tutorial(self.id)
+    def save_general_description(self, description, pin=None):
+        return self._polygon.problem_save_general_description(self.id, description, pin=self._resolve_pin(pin))
 
-    def save_general_tutorial(self, tutorial):
-        return self._polygon.problem_save_general_tutorial(self.id, tutorial)
+    def general_tutorial(self, pin=None):
+        return self._polygon.problem_view_general_tutorial(self.id, pin=self._resolve_pin(pin))
 
-    def statements(self):
-        return self._polygon.problem_statements(self.id)
+    def save_general_tutorial(self, tutorial, pin=None):
+        return self._polygon.problem_save_general_tutorial(self.id, tutorial, pin=self._resolve_pin(pin))
 
-    def save_statement(self, lang, problem_statement):
-        return self._polygon.problem_save_statement(self.id, lang, problem_statement)
+    def statements(self, pin=None):
+        return self._polygon.problem_statements(self.id, pin=self._resolve_pin(pin))
 
-    def statement_resources(self):
-        return self._polygon.problem_statement_resources(self.id)
+    def save_statement(self, lang, problem_statement, pin=None):
+        return self._polygon.problem_save_statement(self.id, lang, problem_statement, pin=self._resolve_pin(pin))
 
-    def save_statement_resource(self, name, file, check_existing=None):
-        return self._polygon.problem_save_statement_resource(self.id, name, file, check_existing)
+    def statement_resources(self, pin=None):
+        return self._polygon.problem_statement_resources(self.id, pin=self._resolve_pin(pin))
 
-    def enable_groups(self, testset, enable):
-        return self._polygon.problem_enable_groups(self.id, testset, enable)
+    def save_statement_resource(self, name, file, check_existing=None, pin=None):
+        return self._polygon.problem_save_statement_resource(self.id, name, file, check_existing,
+                                                             pin=self._resolve_pin(pin))
 
-    def enable_points(self, enable):
-        return self._polygon.problem_enable_points(self.id, enable)
+    def enable_groups(self, testset, enable, pin=None):
+        return self._polygon.problem_enable_groups(self.id, testset, enable, pin=self._resolve_pin(pin))
+
+    def enable_points(self, enable, pin=None):
+        return self._polygon.problem_enable_points(self.id, enable, pin=self._resolve_pin(pin))
 
     def save_test(self, testset, test_index, test_input, test_group=None, test_points=None, test_description=None,
                   test_use_in_statements=None, test_input_for_statements=None, test_output_for_statements=None,
-                  verify_input_output_for_statements=None, check_existing=None):
+                  verify_input_output_for_statements=None, check_existing=None, pin=None):
         return self._polygon.problem_save_test(self.id, testset, test_index, test_input, test_group, test_points,
                                                test_description, test_use_in_statements, test_input_for_statements,
                                                test_output_for_statements, verify_input_output_for_statements,
-                                               check_existing)
+                                               check_existing, pin=self._resolve_pin(pin))
 
-    def set_test_group(self, testset, test_group, test_index=None, test_indices=None):
-        return self._polygon.problem_set_test_group(self.id, testset, test_group, test_index, test_indices)
+    def set_test_group(self, testset, test_group, test_index=None, test_indices=None, pin=None):
+        return self._polygon.problem_set_test_group(self.id, testset, test_group, test_index, test_indices,
+                                                    pin=self._resolve_pin(pin))
 
-    def tests(self, testset, no_inputs=None):
-        return self._polygon.problem_tests(self.id, testset, no_inputs)
+    def tests(self, testset, no_inputs=None, pin=None):
+        return self._polygon.problem_tests(self.id, testset, no_inputs, pin=self._resolve_pin(pin))
 
-    def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None):
+    def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None, pin=None):
         return self._polygon.problem_save_test_group(self.id, testset, group,
-                                                     points_policy, feedback_policy, dependencies)
+                                                     points_policy, feedback_policy, dependencies,
+                                                     pin=self._resolve_pin(pin))
 
-    def view_test_group(self, testset, group=None):
-        return self._polygon.problem_view_test_group(self.id, testset, group)
+    def view_test_group(self, testset, group=None, pin=None):
+        return self._polygon.problem_view_test_group(self.id, testset, group, pin=self._resolve_pin(pin))
 
-    def view_file(self, type, name, binary=False):
-        return self._polygon.problem_view_file(self.id, type, name, binary)
+    def view_file(self, type, name, binary=False, pin=None):
+        return self._polygon.problem_view_file(self.id, type, name, binary, pin=self._resolve_pin(pin))
 
-    def view_solution(self, name, binary=False):
-        return self._polygon.problem_view_solution(self.id, name, binary)
+    def view_solution(self, name, binary=False, pin=None):
+        return self._polygon.problem_view_solution(self.id, name, binary, pin=self._resolve_pin(pin))
 
-    def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None, check_existing=None):
+    def save_file(self, type, name, file, source_type=None, resource_advanced_properties=None, check_existing=None,
+                  pin=None):
         return self._polygon.problem_save_file(self.id, type, name, file, source_type,
-                                               resource_advanced_properties, check_existing)
+                                               resource_advanced_properties, check_existing,
+                                               pin=self._resolve_pin(pin))
 
-    def save_solution(self, name, file, tag, source_type=None, check_existing=None):
-        return self._polygon.problem_save_solution(self.id, name, file, tag, source_type, check_existing)
+    def save_solution(self, name, file, tag, source_type=None, check_existing=None, pin=None):
+        return self._polygon.problem_save_solution(self.id, name, file, tag, source_type, check_existing,
+                                                   pin=self._resolve_pin(pin))
 
-    def edit_solution_extra_tags(self, remove, name, testset=None, test_group=None, tag=None):
-        return self._polygon.problem_edit_solution_extra_tags(self.id, remove, name, testset, test_group, tag)
+    def edit_solution_extra_tags(self, remove, name, testset=None, test_group=None, tag=None, pin=None):
+        return self._polygon.problem_edit_solution_extra_tags(self.id, remove, name, testset, test_group, tag,
+                                                              pin=self._resolve_pin(pin))
 
-    def checker(self):
-        return self._polygon.problem_checker(self.id)
+    def checker(self, pin=None):
+        return self._polygon.problem_checker(self.id, pin=self._resolve_pin(pin))
 
-    def set_checker(self, checker):
-        return self._polygon.problem_set_checker(self.id, checker)
+    def set_checker(self, checker, pin=None):
+        return self._polygon.problem_set_checker(self.id, checker, pin=self._resolve_pin(pin))
 
-    def checker_tests(self):
-        return self._polygon.problem_checker_tests(self.id)
+    def checker_tests(self, pin=None):
+        return self._polygon.problem_checker_tests(self.id, pin=self._resolve_pin(pin))
 
     def save_checker_test(self, test_index, test_input=None, test_output=None,
-                          test_answer=None, test_verdict=None, check_existing=None):
+                          test_answer=None, test_verdict=None, check_existing=None, pin=None):
         return self._polygon.problem_save_checker_test(self.id, test_index, test_input, test_output,
-                                                       test_answer, test_verdict, check_existing)
+                                                       test_answer, test_verdict, check_existing,
+                                                       pin=self._resolve_pin(pin))
 
-    def validator(self):
-        return self._polygon.problem_validator(self.id)
+    def validator(self, pin=None):
+        return self._polygon.problem_validator(self.id, pin=self._resolve_pin(pin))
 
-    def set_validator(self, validator):
-        return self._polygon.problem_set_validator(self.id, validator)
+    def set_validator(self, validator, pin=None):
+        return self._polygon.problem_set_validator(self.id, validator, pin=self._resolve_pin(pin))
 
-    def validator_tests(self):
-        return self._polygon.problem_validator_tests(self.id)
+    def validator_tests(self, pin=None):
+        return self._polygon.problem_validator_tests(self.id, pin=self._resolve_pin(pin))
 
     def save_validator_test(self, test_index, test_input=None, test_verdict=None,
-                            test_group=None, testset=None, check_existing=None):
+                            test_group=None, testset=None, check_existing=None, pin=None):
         return self._polygon.problem_save_validator_test(self.id, test_index, test_input, test_verdict,
-                                                         test_group, testset, check_existing)
+                                                         test_group, testset, check_existing,
+                                                         pin=self._resolve_pin(pin))
 
-    def extra_validators(self):
-        return self._polygon.problem_extra_validators(self.id)
+    def extra_validators(self, pin=None):
+        return self._polygon.problem_extra_validators(self.id, pin=self._resolve_pin(pin))
 
-    def interactor(self):
-        return self._polygon.problem_interactor(self.id)
+    def interactor(self, pin=None):
+        return self._polygon.problem_interactor(self.id, pin=self._resolve_pin(pin))
 
-    def set_interactor(self, interactor):
-        return self._polygon.problem_set_interactor(self.id, interactor)
+    def set_interactor(self, interactor, pin=None):
+        return self._polygon.problem_set_interactor(self.id, interactor, pin=self._resolve_pin(pin))
 
-    def solutions(self):
-        return self._polygon.problem_solutions(self.id)
+    def solutions(self, pin=None):
+        return self._polygon.problem_solutions(self.id, pin=self._resolve_pin(pin))
 
-    def files(self):
-        return self._polygon.problem_files(self.id)
+    def files(self, pin=None):
+        return self._polygon.problem_files(self.id, pin=self._resolve_pin(pin))
 
-    def files_resource(self):
-        return self.files()[FileType.RESOURCE]
+    def files_resource(self, pin=None):
+        return self.files(pin)[FileType.RESOURCE]
 
-    def files_source(self):
-        return self.files()[FileType.SOURCE]
+    def files_source(self, pin=None):
+        return self.files(pin)[FileType.SOURCE]
 
-    def files_aux(self):
-        return self.files()[FileType.AUX]
+    def files_aux(self, pin=None):
+        return self.files(pin)[FileType.AUX]
 
-    def script(self, testset):
-        return self._polygon.problem_script(self.id, testset)
+    def script(self, testset, pin=None):
+        return self._polygon.problem_script(self.id, testset, pin=self._resolve_pin(pin))
 
-    def test_input(self, testset, test_index, binary=False):
-        return self._polygon.problem_test_input(self.id, testset, test_index, binary)
+    def test_input(self, testset, test_index, binary=False, pin=None):
+        return self._polygon.problem_test_input(self.id, testset, test_index, binary, pin=self._resolve_pin(pin))
 
-    def test_answer(self, testset, test_index, binary=False):
-        return self._polygon.problem_test_answer(self.id, testset, test_index, binary)
+    def test_answer(self, testset, test_index, binary=False, pin=None):
+        return self._polygon.problem_test_answer(self.id, testset, test_index, binary, pin=self._resolve_pin(pin))
 
-    def save_script(self, testset, source):
-        return self._polygon.problem_save_script(self.id, testset, source)
+    def save_script(self, testset, source, pin=None):
+        return self._polygon.problem_save_script(self.id, testset, source, pin=self._resolve_pin(pin))
 
-    def packages(self):
-        return self._polygon.problem_packages(self.id)
+    def packages(self, pin=None):
+        return self._polygon.problem_packages(self.id, pin=self._resolve_pin(pin))
 
-    def package(self, package_id, type=None):
-        return self._polygon.problem_package(self.id, package_id, type)
+    def package(self, package_id, type=None, pin=None):
+        return self._polygon.problem_package(self.id, package_id, type, pin=self._resolve_pin(pin))
 
-    def build_package(self, verify, full):
-        return self._polygon.problem_build_package(self.id, verify, full)
+    def build_package(self, verify, full, pin=None):
+        return self._polygon.problem_build_package(self.id, verify, full, pin=self._resolve_pin(pin))
 
 
 class ProblemInfo:
@@ -996,14 +1054,14 @@ class Test:
     _VERIFY_INPUT_OUTPUT_FOR_STATEMENTS = "verifyInputOutputForStatements"
 
     @classmethod
-    def from_json(cls, polygon, problem_id, testset, test_json):
+    def from_json(cls, polygon, problem_id, testset, test_json, pin=None):
         if test_json['manual']:
-            return ManualTest.from_json(polygon, problem_id, testset, test_json)
+            return ManualTest.from_json(polygon, problem_id, testset, test_json, pin)
         else:
-            return GeneratedTest.from_json(polygon, problem_id, testset, test_json)
+            return GeneratedTest.from_json(polygon, problem_id, testset, test_json, pin)
 
     def __init__(self, polygon, problem_id, testset, index, group, points, description, use_in_statements,
-                 input_for_statements, output_for_statements, verify_input_output_for_statements):
+                 input_for_statements, output_for_statements, verify_input_output_for_statements, pin=None):
         self._polygon = polygon
         self._problem_id = problem_id
         self.testset = testset
@@ -1015,12 +1073,19 @@ class Test:
         self.input_for_statements = input_for_statements
         self.output_for_statements = output_for_statements
         self.verify_input_output_for_statements = verify_input_output_for_statements
+        self.pin = pin
+
+    def _resolve_pin(self, pin):
+        """
+        The pin to send: the one passed to a single call wins, otherwise the pin of the test.
+        """
+        return self.pin if pin is None else pin
 
 
 class ManualTest(Test):
 
     @classmethod
-    def from_json(cls, polygon, problem_id, testset, test_json):
+    def from_json(cls, polygon, problem_id, testset, test_json, pin=None):
         verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
         return cls(
             polygon=polygon,
@@ -1035,25 +1100,27 @@ class ManualTest(Test):
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
             output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
             verify_input_output_for_statements=None if verify is None else (verify == 'true'),
+            pin=pin,
         )
 
     def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
                  use_in_statements=None, input_for_statements=None, output_for_statements=None,
-                 verify_input_output_for_statements=None):
+                 verify_input_output_for_statements=None, pin=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
-                         input_for_statements, output_for_statements, verify_input_output_for_statements)
+                         input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
         self.input = input
 
-    def save(self):
+    def save(self, pin=None):
         return self._polygon.problem_save_test(self._problem_id, self.testset, self.index, self.input,
                                                self.group, self.points, self.description, self.use_in_statements,
                                                self.input_for_statements, self.output_for_statements,
-                                               self.verify_input_output_for_statements)
+                                               self.verify_input_output_for_statements,
+                                               pin=self._resolve_pin(pin))
 
 
 class GeneratedTest(Test):
     @classmethod
-    def from_json(cls, polygon, problem_id, testset, test_json):
+    def from_json(cls, polygon, problem_id, testset, test_json, pin=None):
         verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
         return cls(
             polygon=polygon,
@@ -1068,12 +1135,13 @@ class GeneratedTest(Test):
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
             output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
             verify_input_output_for_statements=None if verify is None else (verify == 'true'),
+            pin=pin,
         )
 
     def __init__(self, polygon, problem_id, testset, index, group, points, description, use_in_statements, script_line,
-                 input_for_statements, output_for_statements, verify_input_output_for_statements):
+                 input_for_statements, output_for_statements, verify_input_output_for_statements, pin=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
-                         input_for_statements, output_for_statements, verify_input_output_for_statements)
+                         input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
         self.script_line = script_line
 
 
