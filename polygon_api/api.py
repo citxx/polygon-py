@@ -126,6 +126,8 @@ class Polygon:
                 'inputFile': problem_info.input_file,
                 'outputFile': problem_info.output_file,
                 'interactive': problem_info.interactive,  # TODO
+                'wellFormed': problem_info.well_formed,
+                'skipDuplicatedTestsValidation': problem_info.skip_duplicated_tests_validation,
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
                 'pin': pin,
@@ -1019,6 +1021,8 @@ class ProblemInfo:
     _INPUT_FILE = 'inputFile'
     _OUTPUT_FILE = 'outputFile'
     _INTERACTIVE = 'interactive'
+    _WELL_FORMED = 'wellFormed'
+    _SKIP_DUPLICATED_TESTS_VALIDATION = 'skipDuplicatedTestsValidation'
     _TIME_LIMIT = 'timeLimit'
     _MEMORY_LIMIT = 'memoryLimit'
 
@@ -1028,16 +1032,22 @@ class ProblemInfo:
             input_file=problem_info_json[ProblemInfo._INPUT_FILE],
             output_file=problem_info_json[ProblemInfo._OUTPUT_FILE],
             interactive=problem_info_json[ProblemInfo._INTERACTIVE],
+            well_formed=problem_info_json.get(ProblemInfo._WELL_FORMED, None),
+            skip_duplicated_tests_validation=problem_info_json.get(
+                ProblemInfo._SKIP_DUPLICATED_TESTS_VALIDATION, None),
             time_limit=problem_info_json[ProblemInfo._TIME_LIMIT],
             memory_limit=problem_info_json[ProblemInfo._MEMORY_LIMIT],
         )
 
-    def __init__(self, input_file=None, output_file=None, interactive=None, time_limit=None, memory_limit=None):
+    def __init__(self, input_file=None, output_file=None, interactive=None, time_limit=None, memory_limit=None,
+                 well_formed=None, skip_duplicated_tests_validation=None):
         self.input_file = input_file
         self.output_file = output_file
         self.interactive = interactive
         self.time_limit = time_limit
         self.memory_limit = memory_limit
+        self.well_formed = well_formed
+        self.skip_duplicated_tests_validation = skip_duplicated_tests_validation
 
 
 class Test:

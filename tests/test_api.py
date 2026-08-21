@@ -223,6 +223,43 @@ class TestPackageParsing:
         assert str(PackageType.STANDARD) == 'standard'
 
 
+class TestProblemInfoParsing:
+    """
+    problem.info returns wellFormed and skipDuplicatedTestsValidation next to the limits. Both
+    are read leniently: a problem for which Polygon omits a flag must still yield a ProblemInfo
+    instead of failing the whole call.
+    """
+
+    def test_from_json_with_all_fields(self):
+        info = ProblemInfo.from_json({
+            'inputFile': 'input.txt',
+            'outputFile': 'output.txt',
+            'interactive': False,
+            'wellFormed': True,
+            'skipDuplicatedTestsValidation': False,
+            'timeLimit': 2000,
+            'memoryLimit': 256,
+        })
+        assert info.input_file == 'input.txt'
+        assert info.output_file == 'output.txt'
+        assert info.interactive is False
+        assert info.well_formed is True
+        assert info.skip_duplicated_tests_validation is False
+        assert info.time_limit == 2000
+        assert info.memory_limit == 256
+
+    def test_flags_default_to_none_when_absent(self):
+        info = ProblemInfo.from_json({
+            'inputFile': 'stdin',
+            'outputFile': 'stdout',
+            'interactive': True,
+            'timeLimit': 1000,
+            'memoryLimit': 64,
+        })
+        assert info.well_formed is None
+        assert info.skip_duplicated_tests_validation is None
+
+
 class TestValidatorTestParsing:
     def test_from_json_with_all_fields(self):
         test = ValidatorTest.from_json({
@@ -895,3 +932,26 @@ class TestTestObjectPin:
         calls = _install_fake_post(monkeypatch, text=_ok_body(MANUAL_TEST_RESULT))
         problem.tests('tests')[0].save()
         assert b'pin' not in _sent_args(calls)
+
+
+class TestUpdateInfoArguments:
+    """
+    Both flags are optional API parameters. They have to reach Polygon under their documented
+    names when set - including the False that clears a flag - and stay out of the request
+    entirely when unset, so a partial update can not touch a flag it never mentioned.
+    """
+
+    def test_flags_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_update_info(1, ProblemInfo(well_formed=True, skip_duplicated_tests_validation=False))
+        args = dict(calls[-1]['files'])
+        assert args[b'wellFormed'] == b'true'
+        assert args[b'skipDuplicatedTestsValidation'] == b'false'
+
+    def test_flags_are_omitted_when_left_unset(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_update_info(1, ProblemInfo(time_limit=2000))
+        args = dict(calls[-1]['files'])
+        assert args[b'timeLimit'] == b'2000'
+        assert b'wellFormed' not in args
+        assert b'skipDuplicatedTestsValidation' not in args
