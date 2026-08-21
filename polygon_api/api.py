@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import random
@@ -1004,6 +1005,7 @@ class Test:
     _INDEX = "index"
     _MANUAL = "manual"
     _INPUT = "input"
+    _INPUT_BASE64 = "inputBase64"
     _DESCRIPTION = "description"
     _USE_IN_STATEMENTS = "useInStatements"
     _SCRIPT_LINE = "scriptLine"
@@ -1040,12 +1042,14 @@ class ManualTest(Test):
     @classmethod
     def from_json(cls, polygon, problem_id, testset, test_json):
         verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
+        input_base64 = test_json.get(Test._INPUT_BASE64, None)
         return cls(
             polygon=polygon,
             problem_id=problem_id,
             testset=testset,
             index=int(test_json[Test._INDEX]),
             input=test_json.get(Test._INPUT, None),
+            input_bytes=None if input_base64 is None else base64.b64decode(input_base64),
             group=test_json.get(Test._GROUP, ""),
             points=int(test_json.get(Test._POINTS, "0")),
             description=test_json.get(Test._DESCRIPTION, None),
@@ -1057,10 +1061,11 @@ class ManualTest(Test):
 
     def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
                  use_in_statements=None, input_for_statements=None, output_for_statements=None,
-                 verify_input_output_for_statements=None):
+                 verify_input_output_for_statements=None, input_bytes=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
                          input_for_statements, output_for_statements, verify_input_output_for_statements)
         self.input = input
+        self.input_bytes = input_bytes
 
     def save(self):
         return self._polygon.problem_save_test(self._problem_id, self.testset, self.index, self.input,

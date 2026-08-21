@@ -13,6 +13,7 @@ import pytest
 from polygon_api import (
     CheckerTest,
     CheckerTestVerdict,
+    ManualTest,
     Package,
     PackageState,
     PackageType,
@@ -267,6 +268,44 @@ class TestProblemParsing:
         assert problem.working_copy_revision is None
 
 
+class TestManualTestInputBytes:
+    """
+    problem.tests returns a manual test input twice: input is a lossy UTF-8 view, inputBase64 is
+    the exact bytes. Reading only input silently corrupts every test whose input is not valid
+    UTF-8, so input_bytes has to carry the decoded inputBase64.
+    """
+
+    def test_input_bytes_decodes_input_base64(self, polygon):
+        test = api.Test.from_json(polygon, 1, 'tests', {
+            'index': 3,
+            'manual': True,
+            'input': '\ufffd\ufffd\n',
+            'inputBase64': 'AP8K',
+            'useInStatements': False,
+        })
+        assert test.input_bytes == b'\x00\xff\n'
+        assert test.input == '\ufffd\ufffd\n'
+
+    def test_input_bytes_is_none_when_input_base64_is_absent(self, polygon):
+        test = api.Test.from_json(polygon, 1, 'tests', {
+            'index': 3,
+            'manual': True,
+            'input': '1 2\n',
+            'useInStatements': False,
+        })
+        assert test.input == '1 2\n'
+        assert test.input_bytes is None
+
+    def test_positional_construction_stays_backwards_compatible(self, polygon):
+        test = ManualTest(polygon, 1, 'tests', 3, '1 2\n', 'first', 10, 'a sample')
+        assert test.index == 3
+        assert test.input == '1 2\n'
+        assert test.group == 'first'
+        assert test.points == 10
+        assert test.description == 'a sample'
+        assert test.input_bytes is None
+
+
 class TestProblemInfoParsing:
     """
     problem.info returns wellFormed and skipDuplicatedTestsValidation next to the limits. Both
@@ -291,6 +330,16 @@ class TestProblemInfoParsing:
         assert info.skip_duplicated_tests_validation is False
         assert info.time_limit == 2000
         assert info.memory_limit == 256
+
+    def test_positional_construction_stays_backwards_compatible(self):
+        info = ProblemInfo('input.txt', 'output.txt', False, 2000, 256)
+        assert info.input_file == 'input.txt'
+        assert info.output_file == 'output.txt'
+        assert info.interactive is False
+        assert info.time_limit == 2000
+        assert info.memory_limit == 256
+        assert info.well_formed is None
+        assert info.skip_duplicated_tests_validation is None
 
     def test_flags_default_to_none_when_absent(self):
         info = ProblemInfo.from_json({
@@ -335,6 +384,17 @@ class TestStatementParsing:
         assert statement.tutorial == 'Just print a + b.'
         assert statement.show_in_review is True
         assert statement.show_cautions_and_grammatical_fixes is False
+
+    def test_positional_construction_stays_backwards_compatible(self):
+        statement = Statement('UTF-8', 'A + B', 'Add two numbers.', 'Two integers.', 'Their sum.',
+                              'Full points for a correct answer.', None, 'Beware of overflow.', 'Just print a + b.')
+        assert statement.encoding == 'UTF-8'
+        assert statement.name == 'A + B'
+        assert statement.legend == 'Add two numbers.'
+        assert statement.notes == 'Beware of overflow.'
+        assert statement.tutorial == 'Just print a + b.'
+        assert statement.show_in_review is None
+        assert statement.show_cautions_and_grammatical_fixes is None
 
     def test_review_flags_default_to_none_when_absent(self):
         statement = Statement.from_json({
