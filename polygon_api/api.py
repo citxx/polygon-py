@@ -266,6 +266,8 @@ class Polygon:
                 'interaction': problem_statement.interaction,
                 'notes': problem_statement.notes,
                 'tutorial': problem_statement.tutorial,
+                'showInReview': problem_statement.show_in_review,
+                'showCautionsAndGrammaticalFixes': problem_statement.show_cautions_and_grammatical_fixes,
                 'pin': pin,
             },
         )
@@ -1198,6 +1200,8 @@ class Statement:
     _INTERACTION = "interaction"
     _NOTES = "notes"
     _TUTORIAL = "tutorial"
+    _SHOW_IN_REVIEW = "showInReview"
+    _SHOW_CAUTIONS_AND_GRAMMATICAL_FIXES = "showCautionsAndGrammaticalFixes"
 
     @classmethod
     def from_json(cls, statement_json):
@@ -1211,10 +1215,13 @@ class Statement:
             interaction=statement_json.get(Statement._INTERACTION, None),
             notes=statement_json[Statement._NOTES],
             tutorial=statement_json[Statement._TUTORIAL],
+            show_in_review=statement_json.get(Statement._SHOW_IN_REVIEW, None),
+            show_cautions_and_grammatical_fixes=statement_json.get(
+                Statement._SHOW_CAUTIONS_AND_GRAMMATICAL_FIXES, None),
         )
 
     def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, interaction=None,
-                 notes=None, tutorial=None):
+                 notes=None, tutorial=None, show_in_review=None, show_cautions_and_grammatical_fixes=None):
         self.encoding = encoding
         self.name = name
         self.legend = legend
@@ -1224,6 +1231,8 @@ class Statement:
         self.interaction = interaction
         self.notes = notes
         self.tutorial = tutorial
+        self.show_in_review = show_in_review
+        self.show_cautions_and_grammatical_fixes = show_cautions_and_grammatical_fixes
 
 
 class Package:
