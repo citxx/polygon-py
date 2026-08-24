@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import random
@@ -126,6 +127,8 @@ class Polygon:
                 'inputFile': problem_info.input_file,
                 'outputFile': problem_info.output_file,
                 'interactive': problem_info.interactive,  # TODO
+                'wellFormed': problem_info.well_formed,
+                'skipDuplicatedTestsValidation': problem_info.skip_duplicated_tests_validation,
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
                 'pin': pin,
@@ -264,6 +267,8 @@ class Polygon:
                 'interaction': problem_statement.interaction,
                 'notes': problem_statement.notes,
                 'tutorial': problem_statement.tutorial,
+                'showInReview': problem_statement.show_in_review,
+                'showCautionsAndGrammaticalFixes': problem_statement.show_cautions_and_grammatical_fixes,
                 'pin': pin,
             },
         )
@@ -792,10 +797,12 @@ class Problem:
     _ID_FIELD = 'id'
     _OWNER_FIELD = 'owner'
     _NAME_FIELD = 'name'
+    _NOTE_FIELD = 'note'
     _DELETED_FIELD = 'deleted'
     _FAVORITE_FIELD = 'favourite'
     _ACCESS_TYPE_FIELD = 'accessType'
     _REVISION_FIELD = 'revision'
+    _WORKING_COPY_REVISION_FIELD = 'workingCopyRevision'
     _LATEST_PACKAGE_FIELD = 'latestPackage'
     _MODIFIED_FIELD = 'modified'
 
@@ -812,10 +819,12 @@ class Problem:
             revision=problem_json.get(Problem._REVISION_FIELD),
             latest_package=problem_json.get(Problem._LATEST_PACKAGE_FIELD),
             modified=problem_json.get(Problem._MODIFIED_FIELD),
+            note=problem_json.get(Problem._NOTE_FIELD),
+            working_copy_revision=problem_json.get(Problem._WORKING_COPY_REVISION_FIELD),
         )
 
     def __init__(self, polygon, problem_id, owner, name, deleted, favorite, access_type, revision, latest_package,
-                 modified, pin=None):
+                 modified, note=None, working_copy_revision=None, pin=None):
         self._polygon = polygon
 
         self.id = problem_id
@@ -827,6 +836,8 @@ class Problem:
         self.revision = revision
         self.latest_package = latest_package
         self.modified = modified
+        self.note = note
+        self.working_copy_revision = working_copy_revision
         self.pin = pin
 
     def __str__(self):
@@ -1019,6 +1030,8 @@ class ProblemInfo:
     _INPUT_FILE = 'inputFile'
     _OUTPUT_FILE = 'outputFile'
     _INTERACTIVE = 'interactive'
+    _WELL_FORMED = 'wellFormed'
+    _SKIP_DUPLICATED_TESTS_VALIDATION = 'skipDuplicatedTestsValidation'
     _TIME_LIMIT = 'timeLimit'
     _MEMORY_LIMIT = 'memoryLimit'
 
@@ -1028,22 +1041,29 @@ class ProblemInfo:
             input_file=problem_info_json[ProblemInfo._INPUT_FILE],
             output_file=problem_info_json[ProblemInfo._OUTPUT_FILE],
             interactive=problem_info_json[ProblemInfo._INTERACTIVE],
+            well_formed=problem_info_json.get(ProblemInfo._WELL_FORMED, None),
+            skip_duplicated_tests_validation=problem_info_json.get(
+                ProblemInfo._SKIP_DUPLICATED_TESTS_VALIDATION, None),
             time_limit=problem_info_json[ProblemInfo._TIME_LIMIT],
             memory_limit=problem_info_json[ProblemInfo._MEMORY_LIMIT],
         )
 
-    def __init__(self, input_file=None, output_file=None, interactive=None, time_limit=None, memory_limit=None):
+    def __init__(self, input_file=None, output_file=None, interactive=None, time_limit=None, memory_limit=None,
+                 well_formed=None, skip_duplicated_tests_validation=None):
         self.input_file = input_file
         self.output_file = output_file
         self.interactive = interactive
         self.time_limit = time_limit
         self.memory_limit = memory_limit
+        self.well_formed = well_formed
+        self.skip_duplicated_tests_validation = skip_duplicated_tests_validation
 
 
 class Test:
     _INDEX = "index"
     _MANUAL = "manual"
     _INPUT = "input"
+    _INPUT_BASE64 = "inputBase64"
     _DESCRIPTION = "description"
     _USE_IN_STATEMENTS = "useInStatements"
     _SCRIPT_LINE = "scriptLine"
@@ -1087,12 +1107,14 @@ class ManualTest(Test):
     @classmethod
     def from_json(cls, polygon, problem_id, testset, test_json, pin=None):
         verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
+        input_base64 = test_json.get(Test._INPUT_BASE64, None)
         return cls(
             polygon=polygon,
             problem_id=problem_id,
             testset=testset,
             index=int(test_json[Test._INDEX]),
             input=test_json.get(Test._INPUT, None),
+            input_bytes=None if input_base64 is None else base64.b64decode(input_base64),
             group=test_json.get(Test._GROUP, ""),
             points=int(test_json.get(Test._POINTS, "0")),
             description=test_json.get(Test._DESCRIPTION, None),
@@ -1105,10 +1127,11 @@ class ManualTest(Test):
 
     def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
                  use_in_statements=None, input_for_statements=None, output_for_statements=None,
-                 verify_input_output_for_statements=None, pin=None):
+                 verify_input_output_for_statements=None, input_bytes=None, pin=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
                          input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
         self.input = input
+        self.input_bytes = input_bytes
 
     def save(self, pin=None):
         return self._polygon.problem_save_test(self._problem_id, self.testset, self.index, self.input,
@@ -1188,6 +1211,8 @@ class Statement:
     _INTERACTION = "interaction"
     _NOTES = "notes"
     _TUTORIAL = "tutorial"
+    _SHOW_IN_REVIEW = "showInReview"
+    _SHOW_CAUTIONS_AND_GRAMMATICAL_FIXES = "showCautionsAndGrammaticalFixes"
 
     @classmethod
     def from_json(cls, statement_json):
@@ -1201,10 +1226,13 @@ class Statement:
             interaction=statement_json.get(Statement._INTERACTION, None),
             notes=statement_json[Statement._NOTES],
             tutorial=statement_json[Statement._TUTORIAL],
+            show_in_review=statement_json.get(Statement._SHOW_IN_REVIEW, None),
+            show_cautions_and_grammatical_fixes=statement_json.get(
+                Statement._SHOW_CAUTIONS_AND_GRAMMATICAL_FIXES, None),
         )
 
     def __init__(self, encoding=None, name=None, legend=None, input=None, output=None, scoring=None, interaction=None,
-                 notes=None, tutorial=None):
+                 notes=None, tutorial=None, show_in_review=None, show_cautions_and_grammatical_fixes=None):
         self.encoding = encoding
         self.name = name
         self.legend = legend
@@ -1214,6 +1242,8 @@ class Statement:
         self.interaction = interaction
         self.notes = notes
         self.tutorial = tutorial
+        self.show_in_review = show_in_review
+        self.show_cautions_and_grammatical_fixes = show_cautions_and_grammatical_fixes
 
 
 class Package:
