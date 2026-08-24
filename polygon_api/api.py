@@ -79,6 +79,7 @@ class Polygon:
     _PROBLEM_PACKAGES = 'problem.packages'
     _PROBLEM_PACKAGE = 'problem.package'
     _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
+    _PROBLEM_CAUTIONS = 'problem.cautions'
 
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
@@ -752,6 +753,16 @@ class Polygon:
         )
         return response.result
 
+    def problem_cautions(self, problem_id, pin=None):
+        """
+        Returns structured cautions, package readiness issues and cached AI tips of the problem
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_CAUTIONS,
+            args={'problemId': problem_id, 'pin': pin},
+        )
+        return ProblemCautions.from_json(response.result)
+
     def contest_problems(self, contest_id, pin=None):
         """
         """
@@ -1019,6 +1030,9 @@ class Problem:
 
     def build_package(self, verify, full, pin=None):
         return self._polygon.problem_build_package(self.id, verify, full, pin=self._resolve_pin(pin))
+
+    def cautions(self, pin=None):
+        return self._polygon.problem_cautions(self.id, pin=self._resolve_pin(pin))
 
 
 class ProblemInfo:
@@ -1434,6 +1448,172 @@ class CheckerTest:
         self.run_comment = run_comment
 
 
+class Caution:
+    """
+    Object: representing one Polygon problem caution
+    """
+    _TYPE = "type"
+    _SEVERITY = "severity"
+    _CATEGORY = "category"
+    _MESSAGE = "message"
+    _PARAMETERS = "parameters"
+
+    @classmethod
+    def from_json(cls, caution_json):
+        return cls(
+            # Kept as a plain string: the docs list caution types as examples, so the set is open
+            # and an enum would fail on a type Polygon adds later.
+            type=caution_json[Caution._TYPE],
+            severity=CautionSeverity[caution_json[Caution._SEVERITY]],
+            category=CautionCategory[caution_json[Caution._CATEGORY]],
+            message=caution_json[Caution._MESSAGE],
+            parameters=caution_json[Caution._PARAMETERS],
+        )
+
+    def __init__(self, type, severity, category, message, parameters):
+        self.type = type
+        self.severity = severity
+        self.category = category
+        self.message = message
+        self.parameters = parameters
+
+
+class PackageReadinessIssue:
+    """
+    Object: representing a pre-package state issue collected by Polygon package validation
+    """
+    _TYPE = "type"
+    _REASON = "reason"
+    _MESSAGE = "message"
+
+    @classmethod
+    def from_json(cls, issue_json):
+        return cls(
+            # Kept as a plain string for the same reason as Caution.type: the docs list package
+            # validation exception types as examples only.
+            type=issue_json[PackageReadinessIssue._TYPE],
+            message=issue_json[PackageReadinessIssue._MESSAGE],
+            reason=issue_json.get(PackageReadinessIssue._REASON, None),
+        )
+
+    def __init__(self, type, message, reason=None):
+        self.type = type
+        self.message = message
+        self.reason = reason
+
+
+class StatementAiTip:
+    """
+    Object: representing a cached AI correction tip for one statement language
+    """
+    _LANGUAGE = "language"
+    _SOURCE = "source"
+    _SUGGESTION = "suggestion"
+    _PROCESSING = "processing"
+
+    @classmethod
+    def from_json(cls, tip_json):
+        return cls(
+            language=tip_json[StatementAiTip._LANGUAGE],
+            source=tip_json[StatementAiTip._SOURCE],
+            processing=tip_json[StatementAiTip._PROCESSING],
+            suggestion=tip_json.get(StatementAiTip._SUGGESTION, None),
+        )
+
+    def __init__(self, language, source, processing, suggestion=None):
+        self.language = language
+        self.source = source
+        self.processing = processing
+        self.suggestion = suggestion
+
+
+class SourceAiTip:
+    """
+    Object: representing a cached AI review comment for a source file
+    """
+    _NAME = "name"
+    _COMMENT = "comment"
+
+    @classmethod
+    def from_json(cls, tip_json):
+        return cls(
+            name=tip_json[SourceAiTip._NAME],
+            comment=tip_json[SourceAiTip._COMMENT],
+        )
+
+    def __init__(self, name, comment):
+        self.name = name
+        self.comment = comment
+
+
+class AiTips:
+    """
+    Object: representing cached "Correction tips from AI" for the problem
+    """
+    _DISABLED = "disabled"
+    _STATEMENTS = "statements"
+    _VALIDATOR = "validator"
+    _CHECKER = "checker"
+
+    @classmethod
+    def from_json(cls, ai_tips_json):
+        validator = ai_tips_json.get(AiTips._VALIDATOR, None)
+        checker = ai_tips_json.get(AiTips._CHECKER, None)
+        return cls(
+            disabled=ai_tips_json[AiTips._DISABLED],
+            statements=[StatementAiTip.from_json(js) for js in ai_tips_json[AiTips._STATEMENTS]],
+            validator=SourceAiTip.from_json(validator) if validator is not None else None,
+            checker=SourceAiTip.from_json(checker) if checker is not None else None,
+        )
+
+    def __init__(self, disabled, statements, validator=None, checker=None):
+        self.disabled = disabled
+        self.statements = statements
+        self.validator = validator
+        self.checker = checker
+
+
+class ProblemCautions:
+    """
+    Object: representing structured cautions of a Polygon problem
+    """
+    _COMMON = "common"
+    _STATEMENT = "statement"
+    _STRUCTURE = "structure"
+    _ISSUES = "issues"
+    _PACKAGE_READINESS_ISSUES = "packageReadinessIssues"
+    _LATEST_PACKAGE_WARNINGS = "latestPackageWarnings"
+    _AI = "ai"
+
+    @classmethod
+    def from_json(cls, cautions_json):
+        def cautions(field):
+            return [Caution.from_json(js) for js in cautions_json[field]]
+
+        return cls(
+            common=cautions(ProblemCautions._COMMON),
+            statement=cautions(ProblemCautions._STATEMENT),
+            structure=cautions(ProblemCautions._STRUCTURE),
+            issues=cautions(ProblemCautions._ISSUES),
+            package_readiness_issues=[
+                PackageReadinessIssue.from_json(js)
+                for js in cautions_json[ProblemCautions._PACKAGE_READINESS_ISSUES]
+            ],
+            latest_package_warnings=cautions_json[ProblemCautions._LATEST_PACKAGE_WARNINGS],
+            ai=AiTips.from_json(cautions_json[ProblemCautions._AI]),
+        )
+
+    def __init__(self, common, statement, structure, issues, package_readiness_issues,
+                 latest_package_warnings, ai):
+        self.common = common
+        self.statement = statement
+        self.structure = structure
+        self.issues = issues
+        self.package_readiness_issues = package_readiness_issues
+        self.latest_package_warnings = latest_package_warnings
+        self.ai = ai
+
+
 class Request:
     """
     Request to Polygon API.
@@ -1678,6 +1858,24 @@ class CheckerTestVerdict(Enum):
     WRONG_ANSWER = 1
     CRASHED = 2
     PRESENTATION_ERROR = 3
+
+    def __str__(self):
+        return self.name
+
+
+class CautionSeverity(Enum):
+    SOFT = 0
+    HARD = 1
+
+    def __str__(self):
+        return self.name
+
+
+class CautionCategory(Enum):
+    COMMON = 0
+    STATEMENT = 1
+    STRUCTURE = 2
+    ISSUES = 3
 
     def __str__(self):
         return self.name
