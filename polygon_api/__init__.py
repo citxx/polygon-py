@@ -19,6 +19,9 @@ from .api import (
     SourceAiTip,
     AiTips,
     ProblemCautions,
+    RenderResult,
+    RenderedStatement,
+    RenderStatements,
     PolygonRequestFailedException,
     HTTPRequestFailedException,
     PointsPolicy,
@@ -33,7 +36,8 @@ from .api import (
     ValidatorTestRunVerdict,
     CheckerTestVerdict,
     CautionSeverity,
-    CautionCategory
+    CautionCategory,
+    RenderStatus
 )
 
 __version__ = "1.1.0"

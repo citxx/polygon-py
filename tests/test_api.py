@@ -28,6 +28,10 @@ from polygon_api import (
     Problem,
     ProblemCautions,
     ProblemInfo,
+    RenderResult,
+    RenderStatements,
+    RenderStatus,
+    RenderedStatement,
     SolutionTag,
     SourceAiTip,
     Statement,
@@ -419,6 +423,145 @@ class TestStatementParsing:
         })
         assert statement.show_in_review is None
         assert statement.show_cautions_and_grammatical_fixes is None
+
+
+class TestRenderResultParsing:
+    """
+    One HTML or PDF render. Everything except the status is optional: a FAILED render carries a
+    message and no file, and a successful one carries contentBase64 only when the caller asked
+    for the content.
+    """
+
+    def test_from_json_with_all_fields(self):
+        result = RenderResult.from_json({
+            'status': 'OK',
+            'sha256': 'a' * 64,
+            'sizeBytes': 23,
+            'contentBase64': 'PHA+QWRkIHR3byBudW1iZXJzLjwvcD4=',
+        })
+        assert result.status == RenderStatus.OK
+        assert result.sha256 == 'a' * 64
+        assert result.size_bytes == 23
+        assert result.content_bytes == b'<p>Add two numbers.</p>'
+        assert result.message is None
+
+    def test_content_bytes_decodes_content_base64(self):
+        result = RenderResult.from_json({
+            'status': 'OK',
+            'contentBase64': 'JVBERi0xLjQKJUVPRgo=',
+        })
+        assert result.content_bytes == b'%PDF-1.4\n%EOF\n'
+
+    def test_content_bytes_is_none_when_content_base64_is_absent(self):
+        result = RenderResult.from_json({
+            'status': 'OK',
+            'sha256': 'b' * 64,
+            'sizeBytes': 15,
+        })
+        assert result.content_bytes is None
+        assert result.size_bytes == 15
+
+    def test_a_failed_render_carries_only_a_message(self):
+        result = RenderResult.from_json({
+            'status': 'FAILED',
+            'message': 'Rendering did not finish in 1 minute',
+        })
+        assert result.status == RenderStatus.FAILED
+        assert result.message == 'Rendering did not finish in 1 minute'
+        assert result.sha256 is None
+        assert result.size_bytes is None
+        assert result.content_bytes is None
+
+    @pytest.mark.parametrize('status', ['OK', 'FAILED'])
+    def test_every_documented_status_parses(self, status):
+        assert RenderResult.from_json({'status': status}).status == RenderStatus[status]
+
+    def test_status_is_serialized_by_name(self):
+        assert str(RenderStatus.OK) == 'OK'
+        assert str(RenderStatus.FAILED) == 'FAILED'
+
+
+class TestRenderedStatementParsing:
+    """The HTML and the PDF of one language render independently, so one can fail on its own."""
+
+    def test_from_json_parses_the_nested_render_results(self):
+        rendered = RenderedStatement.from_json({
+            'language': 'english',
+            'html': {'status': 'OK', 'sha256': 'c' * 64, 'sizeBytes': 23},
+            'pdf': {'status': 'FAILED', 'message': 'LaTeX error'},
+        })
+        assert rendered.language == 'english'
+        assert isinstance(rendered.html, RenderResult)
+        assert isinstance(rendered.pdf, RenderResult)
+        assert rendered.html.status == RenderStatus.OK
+        assert rendered.html.size_bytes == 23
+        assert rendered.pdf.status == RenderStatus.FAILED
+        assert rendered.pdf.message == 'LaTeX error'
+
+
+class TestRenderStatementsParsing:
+    """
+    problem.renderStatements returns statements for every language and tutorials only for the
+    languages whose working copy has non-empty tutorial content, so the two lists differ in
+    length and must not be mixed up.
+    """
+
+    def test_from_json_with_all_fields(self):
+        rendered = RenderStatements.from_json({
+            'revision': 7,
+            'renderingTimeSeconds': 1756600000,
+            'statements': [
+                {
+                    'language': 'english',
+                    'html': {'status': 'OK', 'sha256': 'd' * 64, 'sizeBytes': 23},
+                    'pdf': {'status': 'OK', 'sha256': 'e' * 64, 'sizeBytes': 15},
+                },
+                {
+                    'language': 'russian',
+                    'html': {'status': 'OK', 'sha256': 'f' * 64, 'sizeBytes': 31},
+                    'pdf': {'status': 'FAILED', 'message': 'LaTeX error'},
+                },
+            ],
+            'tutorials': [
+                {
+                    'language': 'english',
+                    'html': {'status': 'OK', 'sha256': '0' * 64, 'sizeBytes': 42},
+                    'pdf': {'status': 'OK', 'sha256': '1' * 64, 'sizeBytes': 50},
+                },
+            ],
+        })
+        assert rendered.revision == 7
+        assert rendered.rendering_time_seconds == 1756600000
+        assert [s.language for s in rendered.statements] == ['english', 'russian']
+        assert [t.language for t in rendered.tutorials] == ['english']
+        assert rendered.statements[1].pdf.status == RenderStatus.FAILED
+        assert rendered.tutorials[0].html.size_bytes == 42
+
+    def test_a_problem_without_tutorials_parses_into_an_empty_list(self):
+        rendered = RenderStatements.from_json({
+            'revision': 1,
+            'renderingTimeSeconds': 1756600000,
+            'statements': [
+                {
+                    'language': 'english',
+                    'html': {'status': 'OK', 'sha256': '2' * 64, 'sizeBytes': 23},
+                    'pdf': {'status': 'OK', 'sha256': '3' * 64, 'sizeBytes': 15},
+                },
+            ],
+            'tutorials': [],
+        })
+        assert rendered.tutorials == []
+        assert [s.language for s in rendered.statements] == ['english']
+
+    def test_a_problem_without_statements_parses_into_empty_lists(self):
+        rendered = RenderStatements.from_json({
+            'revision': 1,
+            'renderingTimeSeconds': 1756600000,
+            'statements': [],
+            'tutorials': [],
+        })
+        assert rendered.statements == []
+        assert rendered.tutorials == []
 
 
 class TestValidatorTestParsing:
@@ -849,10 +992,12 @@ def problem(polygon):
 BINARY_ENDPOINTS = [
     ('polygon', 'problem_view_file', (1, 'source', 'a.cpp'), 'problem.viewFile'),
     ('polygon', 'problem_view_solution', (1, 'a.cpp'), 'problem.viewSolution'),
+    ('polygon', 'problem_view_statement_resource', (1, 'olymp.sty'), 'problem.viewStatementResource'),
     ('polygon', 'problem_test_input', (1, 'tests', 1), 'problem.testInput'),
     ('polygon', 'problem_test_answer', (1, 'tests', 1), 'problem.testAnswer'),
     ('problem', 'view_file', ('source', 'a.cpp'), 'problem.viewFile'),
     ('problem', 'view_solution', ('a.cpp',), 'problem.viewSolution'),
+    ('problem', 'view_statement_resource', ('olymp.sty',), 'problem.viewStatementResource'),
     ('problem', 'test_input', ('tests', 1), 'problem.testInput'),
     ('problem', 'test_answer', ('tests', 1), 'problem.testAnswer'),
 ]
@@ -952,7 +1097,7 @@ class TestRequestBodyDispatch:
 
 class TestBinaryParameter:
     """
-    Text by default, bytes on request, for all eight entry points: the four Polygon methods
+    Text by default, bytes on request, for all ten entry points: the five Polygon methods
     returning a file body and their Problem wrappers.
     """
 
@@ -1075,6 +1220,11 @@ CAUTIONS_RESULT = ('{"common": [], "statement": [], '
                    '"packageReadinessIssues": [{"type": "CHECKER_IS_NOT_SET", "message": "Checker is not set"}], '
                    '"latestPackageWarnings": ["Solution a.cpp is not tested on all tests"], '
                    '"ai": {"disabled": true, "statements": []}}')
+RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000, '
+                            '"statements": [{"language": "english", '
+                            '"html": {"status": "OK", "sha256": "%s", "sizeBytes": 23}, '
+                            '"pdf": {"status": "FAILED", "message": "LaTeX error"}}], '
+                            '"tutorials": []}' % ('a' * 64))
 
 PIN_ROWS = [
     PinRow('problem_info', (1,), 'info', (), PROBLEM_INFO_RESULT),
@@ -1089,9 +1239,12 @@ PIN_ROWS = [
     PinRow('problem_view_general_tutorial', (1,), 'general_tutorial', (), NULL_RESULT),
     PinRow('problem_save_general_tutorial', (1, 'text'), 'save_general_tutorial', ('text',), NULL_RESULT),
     PinRow('problem_statements', (1,), 'statements', (), EMPTY_OBJECT_RESULT),
+    PinRow('problem_render_statements', (1,), 'render_statements', (), RENDER_STATEMENTS_RESULT),
     PinRow('problem_save_statement', (1, 'english', Statement()), 'save_statement',
            ('english', Statement()), NULL_RESULT),
     PinRow('problem_statement_resources', (1,), 'statement_resources', (), NULL_RESULT),
+    PinRow('problem_view_statement_resource', (1, 'olymp.sty'), 'view_statement_resource',
+           ('olymp.sty',), NULL_RESULT),
     PinRow('problem_save_statement_resource', (1, 'olymp.sty', 'body'), 'save_statement_resource',
            ('olymp.sty', 'body'), NULL_RESULT),
     PinRow('problem_enable_groups', (1, 'tests', True), 'enable_groups', ('tests', True), NULL_RESULT),
@@ -1388,3 +1541,69 @@ class TestProblemCautions:
         cautions = problem.cautions()
         assert isinstance(cautions, ProblemCautions)
         assert cautions.latest_package_warnings == ['Solution a.cpp is not tested on all tests']
+
+
+class TestRenderStatements:
+    """
+    includeContent is the one optional parameter of problem.renderStatements. Leaving it unset
+    must not mention it, so a caller only after the sha256 and the sizes does not pull whole
+    PDFs over the wire.
+    """
+
+    def test_include_content_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(RENDER_STATEMENTS_RESULT))
+        polygon.problem_render_statements(1, include_content=True)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.renderStatements'
+        assert _sent_args(calls)[b'includeContent'] == b'true'
+
+    def test_include_content_is_omitted_when_left_unset(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(RENDER_STATEMENTS_RESULT))
+        polygon.problem_render_statements(1)
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_result_is_parsed_into_render_statements(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(RENDER_STATEMENTS_RESULT))
+        rendered = polygon.problem_render_statements(1)
+        assert isinstance(rendered, RenderStatements)
+        assert rendered.revision == 7
+        assert rendered.rendering_time_seconds == 1756600000
+        statement, = rendered.statements
+        assert statement.language == 'english'
+        assert statement.html.status == RenderStatus.OK
+        assert statement.html.sha256 == 'a' * 64
+        assert statement.html.size_bytes == 23
+        assert statement.html.content_bytes is None
+        assert statement.pdf.status == RenderStatus.FAILED
+        assert statement.pdf.message == 'LaTeX error'
+        assert rendered.tutorials == []
+
+    def test_the_problem_shortcut_returns_the_same_object(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(RENDER_STATEMENTS_RESULT))
+        rendered = problem.render_statements()
+        assert isinstance(rendered, RenderStatements)
+        assert rendered.revision == 7
+
+    def test_the_problem_shortcut_forwards_include_content(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(RENDER_STATEMENTS_RESULT))
+        problem.render_statements(True)
+        assert _sent_args(calls)[b'includeContent'] == b'true'
+
+
+class TestViewStatementResource:
+    """
+    problem.viewStatementResource returns the resource file itself, not JSON, so the wrapper
+    hands the body back untouched instead of looking for a status in it.
+    """
+
+    def test_the_resource_name_is_sent_under_its_documented_name(self, polygon, post_calls):
+        polygon.problem_view_statement_resource(1, 'olymp.sty')
+        assert post_calls[-1]['url'] == 'https://example.invalid/api/problem.viewStatementResource'
+        assert _sent_args(post_calls)[b'name'] == b'olymp.sty'
+
+    def test_the_body_is_returned_without_json_parsing(self, polygon, post_calls):
+        assert polygon.problem_view_statement_resource(1, 'olymp.sty') == TEXT_BODY
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, post_calls):
+        assert problem.view_statement_resource('olymp.sty') == TEXT_BODY
+        assert post_calls[-1]['url'] == 'https://example.invalid/api/problem.viewStatementResource'
+        assert _sent_args(post_calls)[b'name'] == b'olymp.sty'

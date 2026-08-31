@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from polygon_api import CautionCategory, CautionSeverity, FileType, Polygon
+from polygon_api import CautionCategory, CautionSeverity, FileType, Polygon, RenderStatus
 
 
 API_KEY = 'test-key'
@@ -172,3 +172,103 @@ def test_cautions_are_parsed_from_a_full_api_response(local_api_endpoint, polygo
 
     request, = local_api_endpoint.requests
     _assert_signed_request(request, 'problem.cautions', {'problemId': b'42'})
+
+
+def test_view_statement_resource_returns_utf8_text(local_api_endpoint, polygon):
+    response_text = '\\begin{problem}{Сложите два числа}\n'
+    local_api_endpoint.enqueue_response(
+        response_text.encode('utf-8'),
+        headers={'Content-Type': 'text/plain; charset=utf-8'},
+    )
+
+    result = polygon.problem_view_statement_resource(PROBLEM_ID, 'olymp.sty')
+
+    assert result == response_text
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.viewStatementResource', {
+        'problemId': b'42',
+        'name': b'olymp.sty',
+    })
+
+
+def test_view_statement_resource_returns_exact_bytes_in_binary_mode(local_api_endpoint, polygon):
+    """
+    Statement resources are pictures as often as they are .sty files, and a PNG header cannot be
+    decoded as UTF-8, so binary mode has to hand the body back untouched.
+    """
+    response_body = b'\x89PNG\r\n\x1a\n\x00\xff'
+    local_api_endpoint.enqueue_response(
+        response_body,
+        headers={'Content-Type': 'image/png'},
+    )
+
+    result = polygon.problem_view_statement_resource(PROBLEM_ID, 'scheme.png', binary=True)
+
+    assert result == response_body
+    assert isinstance(result, bytes)
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.viewStatementResource', {
+        'problemId': b'42',
+        'name': b'scheme.png',
+    })
+
+
+def test_rendered_statements_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    With includeContent the whole render tree arrives base64-encoded inside JSON, so the round
+    trip has to survive a PDF that is not valid UTF-8 and a failed render standing next to a
+    successful one.
+    """
+    response_body = (
+        '{"status":"OK","result":{'
+        '"revision":7,"renderingTimeSeconds":1756600000,'
+        '"statements":['
+        '{"language":"russian",'
+        '"html":{"status":"OK","sha256":"' + 'a' * 64 + '","sizeBytes":41,'
+        '"contentBase64":"PHA+0KHQu9C+0LbQuNGC0LUg0LTQstCwINGH0LjRgdC70LAuPC9wPg=="},'
+        '"pdf":{"status":"OK","sha256":"' + 'b' * 64 + '","sizeBytes":19,'
+        '"contentBase64":"JVBERi0xLjQKAP8lRU9GCg=="}},'
+        '{"language":"english",'
+        '"html":{"status":"OK","sha256":"' + 'c' * 64 + '","sizeBytes":23,'
+        '"contentBase64":"PHA+QWRkIHR3byBudW1iZXJzLjwvcD4="},'
+        '"pdf":{"status":"FAILED","message":"Rendering did not finish in 1 minute"}}],'
+        '"tutorials":['
+        '{"language":"russian",'
+        '"html":{"status":"OK","sha256":"' + 'd' * 64 + '","sizeBytes":42},'
+        '"pdf":{"status":"OK","sha256":"' + 'e' * 64 + '","sizeBytes":50}}]}}'
+    ).encode('utf-8')
+    local_api_endpoint.enqueue_response(
+        response_body,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    rendered = polygon.problem_render_statements(PROBLEM_ID, include_content=True)
+
+    assert rendered.revision == 7
+    assert rendered.rendering_time_seconds == 1756600000
+
+    russian, english = rendered.statements
+    assert russian.language == 'russian'
+    assert russian.html.status == RenderStatus.OK
+    assert russian.html.sha256 == 'a' * 64
+    assert russian.html.size_bytes == 41
+    assert russian.html.content_bytes == '<p>Сложите два числа.</p>'.encode('utf-8')
+    assert russian.pdf.content_bytes == b'%PDF-1.4\n\x00\xff%EOF\n'
+    assert russian.pdf.message is None
+
+    assert english.html.content_bytes == b'<p>Add two numbers.</p>'
+    assert english.pdf.status == RenderStatus.FAILED
+    assert english.pdf.message == 'Rendering did not finish in 1 minute'
+    assert english.pdf.sha256 is None
+    assert english.pdf.content_bytes is None
+
+    tutorial, = rendered.tutorials
+    assert tutorial.language == 'russian'
+    assert tutorial.html.size_bytes == 42
+    assert tutorial.html.content_bytes is None
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.renderStatements', {
+        'problemId': b'42',
+        'includeContent': b'true',
+    })
