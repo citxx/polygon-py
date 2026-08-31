@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from polygon_api import FileType, Polygon
+from polygon_api import CautionCategory, CautionSeverity, FileType, Polygon
 
 
 API_KEY = 'test-key'
@@ -122,3 +122,53 @@ def test_pin_is_sent_as_a_signed_field(local_api_endpoint, polygon):
         'enable': b'true',
         'pin': b'1234',
     })
+
+
+def test_cautions_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    problem.cautions returns the whole caution tree in one response, so the round trip has to
+    survive the nested AI tips and non-ASCII statement text as well.
+    """
+    response_body = (
+        '{"status":"OK","result":{'
+        '"common":[{"type":"NO_TAGS","severity":"SOFT","category":"COMMON",'
+        '"message":"Problem has no tags","parameters":[]}],'
+        '"statement":[],'
+        '"structure":[{"type":"NO_CHECKER","severity":"HARD","category":"STRUCTURE",'
+        '"message":"Checker is not set","parameters":[]}],'
+        '"issues":[],'
+        '"packageReadinessIssues":[{"type":"INVALID_TEST_SCRIPT","reason":"tests",'
+        '"message":"Invalid test script for testset tests"}],'
+        '"latestPackageWarnings":["Solution a.cpp is not tested on all tests"],'
+        '"ai":{"disabled":false,'
+        '"statements":[{"language":"russian","source":"Сложите два числа.",'
+        '"suggestion":"Сложите два целых числа.","processing":false}],'
+        '"validator":{"name":"validator.cpp","comment":"Не проверена сумма n."}}}}'
+    ).encode('utf-8')
+    local_api_endpoint.enqueue_response(
+        response_body,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    cautions = polygon.problem_cautions(PROBLEM_ID)
+
+    common, = cautions.common
+    assert common.type == 'NO_TAGS'
+    assert common.severity == CautionSeverity.SOFT
+    assert common.category == CautionCategory.COMMON
+    structure, = cautions.structure
+    assert structure.severity == CautionSeverity.HARD
+    issue, = cautions.package_readiness_issues
+    assert issue.type == 'INVALID_TEST_SCRIPT'
+    assert issue.reason == 'tests'
+    assert cautions.latest_package_warnings == ['Solution a.cpp is not tested on all tests']
+    assert cautions.ai.disabled is False
+    statement_tip, = cautions.ai.statements
+    assert statement_tip.language == 'russian'
+    assert statement_tip.source == 'Сложите два числа.'
+    assert statement_tip.suggestion == 'Сложите два целых числа.'
+    assert cautions.ai.validator.comment == 'Не проверена сумма n.'
+    assert cautions.ai.checker is None
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.cautions', {'problemId': b'42'})

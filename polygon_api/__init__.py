@@ -13,6 +13,12 @@ from .api import (
     ResourceAdvancedProperties,
     ValidatorTest,
     CheckerTest,
+    Caution,
+    PackageReadinessIssue,
+    StatementAiTip,
+    SourceAiTip,
+    AiTips,
+    ProblemCautions,
     PolygonRequestFailedException,
     HTTPRequestFailedException,
     PointsPolicy,
@@ -25,7 +31,9 @@ from .api import (
     PackageType,
     ValidatorTestVerdict,
     ValidatorTestRunVerdict,
-    CheckerTestVerdict
+    CheckerTestVerdict,
+    CautionSeverity,
+    CautionCategory
 )
 
 __version__ = "1.1.0"

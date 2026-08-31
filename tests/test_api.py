@@ -12,18 +12,26 @@ from types import SimpleNamespace
 import pytest
 
 from polygon_api import (
+    AiTips,
+    Caution,
+    CautionCategory,
+    CautionSeverity,
     CheckerTest,
     CheckerTestVerdict,
     FileType,
     ManualTest,
     Package,
+    PackageReadinessIssue,
     PackageState,
     PackageType,
     Polygon,
     Problem,
+    ProblemCautions,
     ProblemInfo,
     SolutionTag,
+    SourceAiTip,
     Statement,
+    StatementAiTip,
     ValidatorTest,
     ValidatorTestRunVerdict,
     ValidatorTestVerdict,
@@ -583,6 +591,215 @@ class TestCheckerTestParsing:
         assert test.run_comment is None
 
 
+class TestCautionParsing:
+    def test_from_json(self):
+        caution = Caution.from_json({
+            'type': 'NO_TAGS',
+            'severity': 'SOFT',
+            'category': 'COMMON',
+            'message': 'Problem has no tags.',
+            'parameters': [],
+        })
+        assert caution.type == 'NO_TAGS'
+        assert caution.severity == CautionSeverity.SOFT
+        assert caution.category == CautionCategory.COMMON
+        assert caution.message == 'Problem has no tags.'
+        assert caution.parameters == []
+
+    @pytest.mark.parametrize('severity', ['SOFT', 'HARD'])
+    def test_every_documented_severity_parses(self, severity):
+        caution = Caution.from_json({
+            'type': 'NO_TAGS', 'severity': severity, 'category': 'COMMON',
+            'message': '', 'parameters': [],
+        })
+        assert caution.severity == CautionSeverity[severity]
+
+    @pytest.mark.parametrize('category', ['COMMON', 'STATEMENT', 'STRUCTURE', 'ISSUES'])
+    def test_every_documented_category_parses(self, category):
+        caution = Caution.from_json({
+            'type': 'NO_TAGS', 'severity': 'SOFT', 'category': category,
+            'message': '', 'parameters': [],
+        })
+        assert caution.category == CautionCategory[category]
+
+    def test_severity_and_category_are_serialized_by_name(self):
+        assert str(CautionSeverity.HARD) == 'HARD'
+        assert str(CautionCategory.ISSUES) == 'ISSUES'
+
+    @pytest.mark.parametrize('caution_type', ['NO_CHECKER_TESTS', 'NO_VALIDATOR_TESTS', 'SOMETHING_NEW'])
+    def test_type_outside_the_documented_examples_parses(self, caution_type):
+        """
+        The docs give caution types as examples only - NO_CHECKER_TESTS and NO_VALIDATOR_TESTS are
+        named in the method description but missing from the type list - so type must stay a string.
+        """
+        caution = Caution.from_json({
+            'type': caution_type, 'severity': 'HARD', 'category': 'STRUCTURE',
+            'message': '', 'parameters': [],
+        })
+        assert caution.type == caution_type
+        assert isinstance(caution.type, str)
+
+    def test_message_parameters_are_kept(self):
+        caution = Caution.from_json({
+            'type': 'TESTSET_SEEMS_TO_BE_INCOMPLETE',
+            'severity': 'SOFT',
+            'category': 'STRUCTURE',
+            'message': 'Testset tests seems to be incomplete',
+            'parameters': ['tests', '3'],
+        })
+        assert caution.parameters == ['tests', '3']
+
+
+class TestPackageReadinessIssueParsing:
+    def test_from_json(self):
+        issue = PackageReadinessIssue.from_json({
+            'type': 'INVALID_TEST_SCRIPT',
+            'reason': 'tests',
+            'message': 'Invalid test script for testset tests: unknown generator gen',
+        })
+        assert issue.type == 'INVALID_TEST_SCRIPT'
+        assert issue.reason == 'tests'
+        assert issue.message == 'Invalid test script for testset tests: unknown generator gen'
+
+    def test_reason_defaults_to_none_when_absent(self):
+        issue = PackageReadinessIssue.from_json({
+            'type': 'HAS_MODIFICATIONS',
+            'message': 'Problem has uncommitted changes',
+        })
+        assert issue.reason is None
+
+    @pytest.mark.parametrize('issue_type', ['NO_CHECKER_TESTS', 'SOMETHING_NEW'])
+    def test_type_outside_the_documented_examples_parses(self, issue_type):
+        """The docs list package validation exception types as examples, so the set is open."""
+        issue = PackageReadinessIssue.from_json({'type': issue_type, 'message': ''})
+        assert issue.type == issue_type
+        assert isinstance(issue.type, str)
+
+
+class TestStatementAiTipParsing:
+    def test_from_json(self):
+        tip = StatementAiTip.from_json({
+            'language': 'english',
+            'source': 'Add two numbers.',
+            'suggestion': 'Add two integers.',
+            'processing': False,
+        })
+        assert tip.language == 'english'
+        assert tip.source == 'Add two numbers.'
+        assert tip.suggestion == 'Add two integers.'
+        assert tip.processing is False
+
+    def test_suggestion_is_absent_while_the_request_is_processed(self):
+        """The docs: suggestion is absent when no suggestion is available, processing included."""
+        tip = StatementAiTip.from_json({
+            'language': 'russian',
+            'source': 'Sum of two numbers.',
+            'processing': True,
+        })
+        assert tip.processing is True
+        assert tip.suggestion is None
+
+
+class TestSourceAiTipParsing:
+    def test_from_json(self):
+        tip = SourceAiTip.from_json({
+            'name': 'validator.cpp',
+            'comment': 'The validator does not check the sum of n over all test cases.',
+        })
+        assert tip.name == 'validator.cpp'
+        assert tip.comment == 'The validator does not check the sum of n over all test cases.'
+
+
+class TestAiTipsParsing:
+    def test_from_json(self):
+        tips = AiTips.from_json({
+            'disabled': False,
+            'statements': [{
+                'language': 'english',
+                'source': 'Add two numbers.',
+                'suggestion': 'Add two integers.',
+                'processing': False,
+            }],
+            'validator': {'name': 'validator.cpp', 'comment': 'No sum check.'},
+            'checker': {'name': 'check.cpp', 'comment': 'Reads a token instead of a line.'},
+        })
+        assert tips.disabled is False
+        statement_tip, = tips.statements
+        assert statement_tip.language == 'english'
+        assert statement_tip.suggestion == 'Add two integers.'
+        assert tips.validator.name == 'validator.cpp'
+        assert tips.validator.comment == 'No sum check.'
+        assert tips.checker.name == 'check.cpp'
+
+    def test_sources_without_a_cached_comment_are_absent(self):
+        """The docs: validator and checker may be absent if there is no cached useful comment."""
+        tips = AiTips.from_json({'disabled': False, 'statements': []})
+        assert tips.statements == []
+        assert tips.validator is None
+        assert tips.checker is None
+
+    def test_disabled_tips_are_empty(self):
+        """The docs: if disabled is true, statements is empty and validator and checker are absent."""
+        tips = AiTips.from_json({'disabled': True, 'statements': []})
+        assert tips.disabled is True
+        assert tips.statements == []
+        assert tips.validator is None
+        assert tips.checker is None
+
+
+EMPTY_AI_TIPS = {'disabled': True, 'statements': []}
+
+
+class TestProblemCautionsParsing:
+    def test_from_json(self):
+        cautions = ProblemCautions.from_json({
+            'common': [{'type': 'NO_TAGS', 'severity': 'SOFT', 'category': 'COMMON',
+                        'message': 'No tags', 'parameters': []}],
+            'statement': [{'type': 'NO_STATEMENT', 'severity': 'HARD', 'category': 'STATEMENT',
+                           'message': 'No statement', 'parameters': []}],
+            'structure': [{'type': 'NO_CHECKER', 'severity': 'HARD', 'category': 'STRUCTURE',
+                           'message': 'No checker', 'parameters': []}],
+            'issues': [{'type': 'OPENED_ISSUES', 'severity': 'SOFT', 'category': 'ISSUES',
+                        'message': 'One opened issue', 'parameters': ['1']}],
+            'packageReadinessIssues': [{'type': 'HAS_MODIFICATIONS',
+                                        'message': 'Problem has uncommitted changes'}],
+            'latestPackageWarnings': ['Solution a.cpp is not tested on all tests'],
+            'ai': EMPTY_AI_TIPS,
+        })
+        common, = cautions.common
+        assert common.type == 'NO_TAGS'
+        assert common.category == CautionCategory.COMMON
+        statement, = cautions.statement
+        assert statement.severity == CautionSeverity.HARD
+        structure, = cautions.structure
+        assert structure.type == 'NO_CHECKER'
+        issues, = cautions.issues
+        assert issues.parameters == ['1']
+        issue, = cautions.package_readiness_issues
+        assert issue.type == 'HAS_MODIFICATIONS'
+        assert cautions.latest_package_warnings == ['Solution a.cpp is not tested on all tests']
+        assert cautions.ai.disabled is True
+
+    def test_a_problem_without_cautions_parses_into_empty_lists(self):
+        """All four caution arrays, the readiness issues, the warnings and ai are always present."""
+        cautions = ProblemCautions.from_json({
+            'common': [],
+            'statement': [],
+            'structure': [],
+            'issues': [],
+            'packageReadinessIssues': [],
+            'latestPackageWarnings': [],
+            'ai': EMPTY_AI_TIPS,
+        })
+        assert cautions.common == []
+        assert cautions.statement == []
+        assert cautions.structure == []
+        assert cautions.issues == []
+        assert cautions.package_readiness_issues == []
+        assert cautions.latest_package_warnings == []
+        assert isinstance(cautions.ai, AiTips)
+
+
 # Response bodies: the text/bytes split and the binary parameter.
 #
 # RAW_BODY is deliberately not valid UTF-8 and differs from TEXT_BODY. A regression that decodes
@@ -851,6 +1068,13 @@ FILES_RESULT = '{"resourceFiles": [], "sourceFiles": [], "auxFiles": []}'
 EMPTY_LIST_RESULT = '[]'
 EMPTY_OBJECT_RESULT = '{}'
 NULL_RESULT = 'null'
+CAUTIONS_RESULT = ('{"common": [], "statement": [], '
+                   '"structure": [{"type": "NO_CHECKER", "severity": "HARD", "category": "STRUCTURE", '
+                   '"message": "Checker is not set", "parameters": []}], '
+                   '"issues": [], '
+                   '"packageReadinessIssues": [{"type": "CHECKER_IS_NOT_SET", "message": "Checker is not set"}], '
+                   '"latestPackageWarnings": ["Solution a.cpp is not tested on all tests"], '
+                   '"ai": {"disabled": true, "statements": []}}')
 
 PIN_ROWS = [
     PinRow('problem_info', (1,), 'info', (), PROBLEM_INFO_RESULT),
@@ -907,6 +1131,7 @@ PIN_ROWS = [
     PinRow('problem_save_validator_test', (1, 1), 'save_validator_test', (1,), NULL_RESULT),
     PinRow('problem_interactor', (1,), 'interactor', (), NULL_RESULT),
     PinRow('problem_set_interactor', (1, 'int.cpp'), 'set_interactor', ('int.cpp',), NULL_RESULT),
+    PinRow('problem_cautions', (1,), 'cautions', (), CAUTIONS_RESULT),
     PinRow('problem_packages', (1,), 'packages', (), EMPTY_LIST_RESULT),
     PinRow('problem_package', (1, 2), 'package', (2,), NULL_RESULT),
     PinRow('problem_build_package', (1, True, False), 'build_package', (True, False), NULL_RESULT),
@@ -1135,3 +1360,31 @@ class TestSaveStatementArguments:
         assert args[b'legend'] == b'Add two numbers.'
         assert b'showInReview' not in args
         assert b'showCautionsAndGrammaticalFixes' not in args
+
+
+class TestProblemCautions:
+    """problem.cautions takes no parameters of its own and returns a single object, not a list."""
+
+    def test_only_the_problem_id_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(CAUTIONS_RESULT))
+        polygon.problem_cautions(1)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.cautions'
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_result_is_parsed_into_problem_cautions(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(CAUTIONS_RESULT))
+        cautions = polygon.problem_cautions(1)
+        assert isinstance(cautions, ProblemCautions)
+        structure, = cautions.structure
+        assert structure.type == 'NO_CHECKER'
+        assert structure.severity == CautionSeverity.HARD
+        issue, = cautions.package_readiness_issues
+        assert issue.type == 'CHECKER_IS_NOT_SET'
+        assert cautions.latest_package_warnings == ['Solution a.cpp is not tested on all tests']
+        assert cautions.ai.disabled is True
+
+    def test_the_problem_shortcut_returns_the_same_object(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(CAUTIONS_RESULT))
+        cautions = problem.cautions()
+        assert isinstance(cautions, ProblemCautions)
+        assert cautions.latest_package_warnings == ['Solution a.cpp is not tested on all tests']
