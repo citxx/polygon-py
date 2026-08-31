@@ -18,6 +18,7 @@ from polygon_api import (
     CautionSeverity,
     CheckerTest,
     CheckerTestVerdict,
+    File,
     FileType,
     ManualTest,
     Package,
@@ -419,6 +420,43 @@ class TestStatementParsing:
         })
         assert statement.show_in_review is None
         assert statement.show_cautions_and_grammatical_fixes is None
+
+
+class TestStatementResourcesParsing:
+    """
+    problem.statementResources is documented to return a list of File objects, see
+    https://codeforces.github.io/polygon-misc/API. Statement resources carry neither sourceType
+    nor resourceAdvancedProperties, so both stay None.
+    """
+
+    RESOURCES_RESULT = ('[{"name": "olymp.sty", "modificationTimeSeconds": 1600000000, '
+                        '"length": 1024}]')
+
+    def test_resources_are_parsed_into_file_objects(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(self.RESOURCES_RESULT))
+        resources = polygon.problem_statement_resources(1)
+        assert len(resources) == 1
+        resource = resources[0]
+        assert isinstance(resource, File)
+        assert resource.name == 'olymp.sty'
+        assert resource.modification_time_seconds == 1600000000
+        assert resource.length == 1024
+
+    def test_statement_resources_have_no_source_type_or_advanced_properties(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(self.RESOURCES_RESULT))
+        resource = polygon.problem_statement_resources(1)[0]
+        assert resource.source_type is None
+        assert resource.resource_advanced_properties is None
+
+    def test_a_problem_without_resources_parses_into_an_empty_list(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body('[]'))
+        assert polygon.problem_statement_resources(1) == []
+
+    def test_problem_shortcut_parses_the_same_way(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(self.RESOURCES_RESULT))
+        resources = problem.statement_resources()
+        assert [resource.name for resource in resources] == ['olymp.sty']
+        assert isinstance(resources[0], File)
 
 
 class TestValidatorTestParsing:
@@ -1091,7 +1129,7 @@ PIN_ROWS = [
     PinRow('problem_statements', (1,), 'statements', (), EMPTY_OBJECT_RESULT),
     PinRow('problem_save_statement', (1, 'english', Statement()), 'save_statement',
            ('english', Statement()), NULL_RESULT),
-    PinRow('problem_statement_resources', (1,), 'statement_resources', (), NULL_RESULT),
+    PinRow('problem_statement_resources', (1,), 'statement_resources', (), EMPTY_LIST_RESULT),
     PinRow('problem_save_statement_resource', (1, 'olymp.sty', 'body'), 'save_statement_resource',
            ('olymp.sty', 'body'), NULL_RESULT),
     PinRow('problem_enable_groups', (1, 'tests', True), 'enable_groups', ('tests', True), NULL_RESULT),

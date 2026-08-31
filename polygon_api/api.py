@@ -276,6 +276,9 @@ class Polygon:
         return response.result
 
     def problem_statement_resources(self, problem_id, pin=None):
+        """
+        Returns a list of File objects, one per statement resource
+        """
         response = self._request_ok_or_raise(
             self._PROBLEM_STATEMENT_RESOURCES,
             args={
@@ -283,7 +286,7 @@ class Polygon:
                 'pin': pin,
             },
         )
-        return response.result
+        return [File.from_json(js) for js in response.result]
 
     def problem_save_statement_resource(self, problem_id, name, file, check_existing=None, pin=None):
         response = self._request_ok_or_raise(
