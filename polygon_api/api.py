@@ -82,6 +82,8 @@ class Polygon:
     _PROBLEM_PACKAGE = 'problem.package'
     _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
     _PROBLEM_CAUTIONS = 'problem.cautions'
+    _PROBLEM_ACCESSES = 'problem.accesses'
+    _PROBLEM_SET_ACCESS = 'problem.setAccess'
 
     def __init__(self, api_url, api_key, api_secret):
         self.request_config = RequestConfig(api_url, api_key, api_secret)
@@ -798,6 +800,34 @@ class Polygon:
         )
         return ProblemCautions.from_json(response.result)
 
+    def problem_accesses(self, problem_id, pin=None):
+        """
+        Returns the direct access-control entries of the problem, users and user groups alike
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_ACCESSES,
+            args={'problemId': problem_id, 'pin': pin},
+        )
+        return [ProblemAccess.from_json(js) for js in response.result]
+
+    def problem_set_access(self, problem_id, login, access_type, pin=None):
+        """
+        Sets the direct access of one user to the problem, ProblemAccessType.NONE removing it
+        """
+        if not isinstance(access_type, ProblemAccessType):
+            raise ValueError(
+                "Expected ProblemAccessType instance for access_type argument, but %s found" % type(access_type))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_ACCESS,
+            args={
+                'problemId': problem_id,
+                'login': login,
+                'accessType': access_type,
+                'pin': pin,
+            },
+        )
+        return response.result
+
     def contest_problems(self, contest_id, pin=None):
         """
         """
@@ -854,6 +884,7 @@ class Problem:
 
     @classmethod
     def from_json(cls, polygon, problem_json):
+        access_type = problem_json.get(Problem._ACCESS_TYPE_FIELD)
         return cls(
             polygon=polygon,
             problem_id=problem_json.get(Problem._ID_FIELD),
@@ -861,7 +892,7 @@ class Problem:
             name=problem_json.get(Problem._NAME_FIELD),
             deleted=problem_json.get(Problem._DELETED_FIELD),
             favorite=problem_json.get(Problem._FAVORITE_FIELD),
-            access_type=problem_json.get(Problem._ACCESS_TYPE_FIELD),
+            access_type=None if access_type is None else ProblemAccessType[access_type],
             revision=problem_json.get(Problem._REVISION_FIELD),
             latest_package=problem_json.get(Problem._LATEST_PACKAGE_FIELD),
             modified=problem_json.get(Problem._MODIFIED_FIELD),
@@ -1074,6 +1105,12 @@ class Problem:
 
     def cautions(self, pin=None):
         return self._polygon.problem_cautions(self.id, pin=self._resolve_pin(pin))
+
+    def accesses(self, pin=None):
+        return self._polygon.problem_accesses(self.id, pin=self._resolve_pin(pin))
+
+    def set_access(self, login, access_type, pin=None):
+        return self._polygon.problem_set_access(self.id, login, access_type, pin=self._resolve_pin(pin))
 
 
 class ProblemInfo:
@@ -1734,6 +1771,25 @@ class ProblemCautions:
         self.ai = ai
 
 
+class ProblemAccess:
+    """
+    Object: representing one direct access-control entry of a Polygon problem
+    """
+    _LOGIN = "login"
+    _ACCESS_TYPE = "accessType"
+
+    @classmethod
+    def from_json(cls, access_json):
+        return cls(
+            login=access_json[ProblemAccess._LOGIN],
+            access_type=ProblemAccessType[access_json[ProblemAccess._ACCESS_TYPE]],
+        )
+
+    def __init__(self, login, access_type):
+        self.login = login
+        self.access_type = access_type
+
+
 class Request:
     """
     Request to Polygon API.
@@ -2004,6 +2060,16 @@ class CautionCategory(Enum):
 class RenderStatus(Enum):
     OK = 0
     FAILED = 1
+
+    def __str__(self):
+        return self.name
+
+
+class ProblemAccessType(Enum):
+    READ = 0
+    WRITE = 1
+    OWNER = 2
+    NONE = 3
 
     def __str__(self):
         return self.name

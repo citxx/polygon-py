@@ -27,6 +27,8 @@ from polygon_api import (
     PackageType,
     Polygon,
     Problem,
+    ProblemAccess,
+    ProblemAccessType,
     ProblemCautions,
     ProblemInfo,
     RenderResult,
@@ -263,11 +265,19 @@ class TestProblemParsing:
         assert problem.note == 'do not publish yet'
         assert problem.deleted is False
         assert problem.favorite is True
-        assert problem.access_type == 'OWNER'
+        assert problem.access_type == ProblemAccessType.OWNER
         assert problem.revision == 7
         assert problem.working_copy_revision == 8
         assert problem.latest_package == 6
         assert problem.modified is True
+
+    def test_access_type_defaults_to_none_when_absent(self, polygon):
+        """
+        accessType is absent from a Problem the caller builds by hand and from any response that
+        omits it, so parsing must leave it None instead of raising on a missing enum name.
+        """
+        problem = Problem.from_json(polygon, {'id': 42})
+        assert problem.access_type is None
 
     def test_note_and_working_copy_revision_default_to_none_when_absent(self, polygon):
         problem = Problem.from_json(polygon, {
@@ -981,6 +991,35 @@ class TestProblemCautionsParsing:
         assert isinstance(cautions.ai, AiTips)
 
 
+class TestProblemAccessParsing:
+    def test_from_json(self):
+        access = ProblemAccess.from_json({'login': 'alice', 'accessType': 'READ'})
+        assert access.login == 'alice'
+        assert access.access_type == ProblemAccessType.READ
+
+    def test_a_user_group_keeps_its_leading_at_sign(self):
+        """The docs: login is a user login, or a user-group name prefixed with @."""
+        access = ProblemAccess.from_json({'login': '@editors', 'accessType': 'WRITE'})
+        assert access.login == '@editors'
+        assert access.access_type == ProblemAccessType.WRITE
+
+    @pytest.mark.parametrize('access_type', ['READ', 'WRITE', 'OWNER'])
+    def test_every_returned_access_type_parses(self, access_type):
+        """problem.accesses returns READ, WRITE or OWNER; NONE is a set-only value."""
+        access = ProblemAccess.from_json({'login': 'alice', 'accessType': access_type})
+        assert access.access_type == ProblemAccessType[access_type]
+
+
+class TestProblemAccessTypeSerialization:
+    @pytest.mark.parametrize('access_type', ['READ', 'WRITE', 'OWNER', 'NONE'])
+    def test_every_access_type_is_serialized_by_name(self, access_type):
+        """
+        problem.setAccess takes the accessType as its bare name, so the enum has to stringify to
+        NONE rather than to ProblemAccessType.NONE.
+        """
+        assert str(ProblemAccessType[access_type]) == access_type
+
+
 # Response bodies: the text/bytes split and the binary parameter.
 #
 # RAW_BODY is deliberately not valid UTF-8 and differs from TEXT_BODY. A regression that decodes
@@ -1258,6 +1297,9 @@ CAUTIONS_RESULT = ('{"common": [], "statement": [], '
                    '"packageReadinessIssues": [{"type": "CHECKER_IS_NOT_SET", "message": "Checker is not set"}], '
                    '"latestPackageWarnings": ["Solution a.cpp is not tested on all tests"], '
                    '"ai": {"disabled": true, "statements": []}}')
+ACCESSES_RESULT = ('[{"login": "@editors", "accessType": "WRITE"}, '
+                   '{"login": "alice", "accessType": "READ"}, '
+                   '{"login": "owner", "accessType": "OWNER"}]')
 RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000, '
                             '"statements": [{"language": "english", '
                             '"html": {"status": "OK", "sha256": "%s", "sizeBytes": 23}, '
@@ -1323,6 +1365,9 @@ PIN_ROWS = [
     PinRow('problem_interactor', (1,), 'interactor', (), NULL_RESULT),
     PinRow('problem_set_interactor', (1, 'int.cpp'), 'set_interactor', ('int.cpp',), NULL_RESULT),
     PinRow('problem_cautions', (1,), 'cautions', (), CAUTIONS_RESULT),
+    PinRow('problem_accesses', (1,), 'accesses', (), ACCESSES_RESULT),
+    PinRow('problem_set_access', (1, 'alice', ProblemAccessType.READ), 'set_access',
+           ('alice', ProblemAccessType.READ), NULL_RESULT),
     PinRow('problem_packages', (1,), 'packages', (), EMPTY_LIST_RESULT),
     PinRow('problem_package', (1, 2), 'package', (2,), NULL_RESULT),
     PinRow('problem_build_package', (1, True, False), 'build_package', (True, False), NULL_RESULT),
@@ -1645,3 +1690,75 @@ class TestViewStatementResource:
         assert problem.view_statement_resource('olymp.sty') == TEXT_BODY
         assert post_calls[-1]['url'] == 'https://example.invalid/api/problem.viewStatementResource'
         assert _sent_args(post_calls)[b'name'] == b'olymp.sty'
+
+
+class TestProblemAccesses:
+    """problem.accesses takes no parameters of its own and returns a list of direct entries."""
+
+    def test_only_the_problem_id_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ACCESSES_RESULT))
+        polygon.problem_accesses(1)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.accesses'
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_every_entry_is_parsed_into_a_problem_access(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(ACCESSES_RESULT))
+        accesses = polygon.problem_accesses(1)
+        assert [type(access) for access in accesses] == [ProblemAccess] * 3
+        assert [access.login for access in accesses] == ['@editors', 'alice', 'owner']
+        assert [access.access_type for access in accesses] == [
+            ProblemAccessType.WRITE,
+            ProblemAccessType.READ,
+            ProblemAccessType.OWNER,
+        ]
+
+    def test_a_problem_with_no_shared_access_parses_into_an_empty_list(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        assert polygon.problem_accesses(1) == []
+
+    def test_the_problem_shortcut_returns_the_same_objects(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(ACCESSES_RESULT))
+        accesses = problem.accesses()
+        assert [access.login for access in accesses] == ['@editors', 'alice', 'owner']
+        assert accesses[0].access_type == ProblemAccessType.WRITE
+
+
+class TestSetAccess:
+    """
+    problem.setAccess takes a login and the required access state, and answers with a bare
+    status and no result field.
+    """
+
+    def test_the_login_and_access_type_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_set_access(1, 'alice', ProblemAccessType.WRITE)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.setAccess'
+        args = _sent_args(calls)
+        assert args[b'problemId'] == b'1'
+        assert args[b'login'] == b'alice'
+        assert args[b'accessType'] == b'WRITE'
+
+    def test_removing_a_direct_entry_sends_none_as_the_access_type(self, polygon, monkeypatch):
+        """
+        NONE is how the API spells "remove the direct entry", so it has to reach the wire as the
+        bare name rather than be dropped as a Python None would be.
+        """
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_set_access(1, 'alice', ProblemAccessType.NONE)
+        assert _sent_args(calls)[b'accessType'] == b'NONE'
+
+    def test_a_bare_string_access_type_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_set_access(1, 'alice', 'WRITE')
+
+    def test_an_access_type_from_another_enum_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_set_access(1, 'alice', CautionSeverity.HARD)
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.set_access('alice', ProblemAccessType.READ)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.setAccess'
+        args = _sent_args(calls)
+        assert args[b'login'] == b'alice'
+        assert args[b'accessType'] == b'READ'

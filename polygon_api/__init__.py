@@ -19,6 +19,7 @@ from .api import (
     SourceAiTip,
     AiTips,
     ProblemCautions,
+    ProblemAccess,
     RenderResult,
     RenderedStatement,
     RenderStatements,
@@ -37,7 +38,8 @@ from .api import (
     CheckerTestVerdict,
     CautionSeverity,
     CautionCategory,
-    RenderStatus
+    RenderStatus,
+    ProblemAccessType
 )
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
