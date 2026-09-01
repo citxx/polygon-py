@@ -272,3 +272,36 @@ def test_rendered_statements_are_parsed_from_a_full_api_response(local_api_endpo
         'problemId': b'42',
         'includeContent': b'true',
     })
+
+
+def test_an_empty_note_survives_the_multipart_encoding(local_api_endpoint, polygon):
+    """
+    An empty note is how problem.saveNote clears the note. The unit tests only see the arguments
+    before they are encoded, so an empty field dropped by the multipart encoder, or left out of
+    apiSig, would go unnoticed there and clear nothing.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":null}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_save_note(PROBLEM_ID, '')
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.saveNote', {
+        'problemId': b'42',
+        'note': b'',
+    })
+
+
+def test_a_note_round_trips_as_utf8_text(local_api_endpoint, polygon):
+    """The note is free-form user text, so it has to survive non-ASCII in both directions."""
+    local_api_endpoint.enqueue_response(
+        '{"status":"OK","result":"не публиковать"}'.encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    assert polygon.problem_note(PROBLEM_ID) == 'не публиковать'
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.note', {'problemId': b'42'})

@@ -1251,6 +1251,7 @@ FILES_RESULT = '{"resourceFiles": [], "sourceFiles": [], "auxFiles": []}'
 EMPTY_LIST_RESULT = '[]'
 EMPTY_OBJECT_RESULT = '{}'
 NULL_RESULT = 'null'
+NOTE_RESULT = '"a note"'
 CAUTIONS_RESULT = ('{"common": [], "statement": [], '
                    '"structure": [{"type": "NO_CHECKER", "severity": "HARD", "category": "STRUCTURE", '
                    '"message": "Checker is not set", "parameters": []}], '
@@ -1267,6 +1268,8 @@ RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000,
 PIN_ROWS = [
     PinRow('problem_info', (1,), 'info', (), PROBLEM_INFO_RESULT),
     PinRow('problem_update_info', (1, ProblemInfo()), 'update_info', (ProblemInfo(),), NULL_RESULT),
+    PinRow('problem_note', (1,), 'view_note', (), NOTE_RESULT),
+    PinRow('problem_save_note', (1, 'a note'), 'save_note', ('a note',), NULL_RESULT),
     PinRow('problem_update_working_copy', (1,), 'update_working_copy', (), NULL_RESULT),
     PinRow('problem_discard_working_copy', (1,), 'discard_working_copy', (), NULL_RESULT),
     PinRow('problem_commit_changes', (1,), 'commit_changes', (), NULL_RESULT),
@@ -1645,3 +1648,49 @@ class TestViewStatementResource:
         assert problem.view_statement_resource('olymp.sty') == TEXT_BODY
         assert post_calls[-1]['url'] == 'https://example.invalid/api/problem.viewStatementResource'
         assert _sent_args(post_calls)[b'name'] == b'olymp.sty'
+
+
+class TestProblemNote:
+    """
+    problem.note and problem.saveNote read and write the problem note, which lives outside the
+    working copy. Problem already carries a note attribute holding the value that came with the
+    problem object (see TestProblemParsing), and an instance attribute shadows a method of the
+    same name, so the fetching shortcut is view_note rather than note.
+    """
+
+    def test_only_the_problem_id_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(NOTE_RESULT))
+        polygon.problem_note(1)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.note'
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_note_is_returned_as_a_string(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(NOTE_RESULT))
+        assert polygon.problem_note(1) == 'a note'
+
+    def test_an_unset_note_is_returned_as_an_empty_string(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body('""'))
+        assert polygon.problem_note(1) == ''
+
+    def test_the_note_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(NULL_RESULT))
+        polygon.problem_save_note(1, 'a note')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.saveNote'
+        assert _sent_args(calls)[b'note'] == b'a note'
+
+    def test_an_empty_note_is_sent_rather_than_dropped(self, polygon, monkeypatch):
+        """An empty note is how a caller clears it, so it has to reach the API."""
+        calls = _install_fake_post(monkeypatch, text=_ok_body(NULL_RESULT))
+        polygon.problem_save_note(1, '')
+        assert _sent_args(calls)[b'note'] == b''
+
+    def test_the_view_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(NOTE_RESULT))
+        assert problem.view_note() == 'a note'
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.note'
+
+    def test_the_save_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(NULL_RESULT))
+        problem.save_note('a note')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.saveNote'
+        assert _sent_args(calls)[b'note'] == b'a note'

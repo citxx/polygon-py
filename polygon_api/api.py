@@ -32,6 +32,8 @@ class Polygon:
     _CONTEST_PROBLEMS = 'contest.problems'
     _PROBLEM_INFO = 'problem.info'
     _PROBLEM_UPDATE_INFO = 'problem.updateInfo'
+    _PROBLEM_NOTE = 'problem.note'
+    _PROBLEM_SAVE_NOTE = 'problem.saveNote'
     _PROBLEM_UPDATE_WORKING_COPY = 'problem.updateWorkingCopy'
     _PROBLEM_DISCARD_WORKING_COPY = 'problem.discardWorkingCopy'
     _PROBLEM_COMMIT_CHANGES = 'problem.commitChanges'
@@ -134,6 +136,31 @@ class Polygon:
                 'skipDuplicatedTestsValidation': problem_info.skip_duplicated_tests_validation,
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
+                'pin': pin,
+            },
+        )
+        return response.result
+
+    def problem_note(self, problem_id, pin=None):
+        """
+        Returns the problem note, an empty string if it is not set
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_NOTE,
+            args={'problemId': problem_id, 'pin': pin},
+        )
+        return response.result
+
+    def problem_save_note(self, problem_id, note, pin=None):
+        """
+        Saves the problem note, up to 50 characters, an empty string clears it.
+        Applies at once, problem.commitChanges is not needed
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_NOTE,
+            args={
+                'problemId': problem_id,
+                'note': note,
                 'pin': pin,
             },
         )
@@ -900,6 +927,15 @@ class Problem:
 
     def update_info(self, problem_info, pin=None):
         return self._polygon.problem_update_info(self.id, problem_info, pin=self._resolve_pin(pin))
+
+    def view_note(self, pin=None):
+        """
+        Calls problem.note. The note attribute holds the note that came with the problem object
+        """
+        return self._polygon.problem_note(self.id, pin=self._resolve_pin(pin))
+
+    def save_note(self, note, pin=None):
+        return self._polygon.problem_save_note(self.id, note, pin=self._resolve_pin(pin))
 
     def update_working_copy(self, pin=None):
         return self._polygon.problem_update_working_copy(self.id, pin=self._resolve_pin(pin))
