@@ -2,7 +2,14 @@ import hashlib
 
 import pytest
 
-from polygon_api import CautionCategory, CautionSeverity, FileType, Polygon, RenderStatus
+from polygon_api import (
+    CautionCategory,
+    CautionSeverity,
+    FileType,
+    Polygon,
+    ProblemAccessType,
+    RenderStatus,
+)
 
 
 API_KEY = 'test-key'
@@ -271,4 +278,54 @@ def test_rendered_statements_are_parsed_from_a_full_api_response(local_api_endpo
     _assert_signed_request(request, 'problem.renderStatements', {
         'problemId': b'42',
         'includeContent': b'true',
+    })
+
+
+def test_accesses_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    problem.accesses answers with a JSON array rather than an object, and the entries keep the
+    order the API sent them in - the docs sort by login, case-sensitively, so a user group comes
+    before the logins.
+    """
+    response_body = (
+        '{"status":"OK","result":['
+        '{"login":"@editors","accessType":"WRITE"},'
+        '{"login":"alice","accessType":"READ"},'
+        '{"login":"owner","accessType":"OWNER"}]}'
+    ).encode('utf-8')
+    local_api_endpoint.enqueue_response(
+        response_body,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    accesses = polygon.problem_accesses(PROBLEM_ID)
+
+    assert [access.login for access in accesses] == ['@editors', 'alice', 'owner']
+    assert [access.access_type for access in accesses] == [
+        ProblemAccessType.WRITE,
+        ProblemAccessType.READ,
+        ProblemAccessType.OWNER,
+    ]
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.accesses', {'problemId': b'42'})
+
+
+def test_set_access_accepts_a_success_response_without_a_result(local_api_endpoint, polygon):
+    """
+    The docs: a successful problem.setAccess response is {"status":"OK"} with no result field at
+    all, so the wrapper has to answer None instead of tripping over the missing key.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    assert polygon.problem_set_access(PROBLEM_ID, 'alice', ProblemAccessType.NONE) is None
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.setAccess', {
+        'problemId': b'42',
+        'login': b'alice',
+        'accessType': b'NONE',
     })
