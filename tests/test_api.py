@@ -461,7 +461,7 @@ class TestStatementResourcesParsing:
         resources = problem.statement_resources()
         assert [resource.name for resource in resources] == ['olymp.sty']
         assert isinstance(resources[0], File)
-        
+
 
 class TestRenderResultParsing:
     """
