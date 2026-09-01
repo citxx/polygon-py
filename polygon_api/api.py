@@ -36,8 +36,10 @@ class Polygon:
     _PROBLEM_DISCARD_WORKING_COPY = 'problem.discardWorkingCopy'
     _PROBLEM_COMMIT_CHANGES = 'problem.commitChanges'
     _PROBLEM_STATEMENTS = 'problem.statements'
+    _PROBLEM_RENDER_STATEMENTS = 'problem.renderStatements'
     _PROBLEM_SAVE_STATEMENT = 'problem.saveStatement'
     _PROBLEM_STATEMENT_RESOURCES = 'problem.statementResources'
+    _PROBLEM_VIEW_STATEMENT_RESOURCE = 'problem.viewStatementResource'
     _PROBLEM_SAVE_STATEMENT_RESOURCE = 'problem.saveStatementResource'
     _PROBLEMS_LIST = 'problems.list'
     _PROBLEM_CREATE = 'problem.create'
@@ -248,6 +250,21 @@ class Polygon:
         )
         return {lang: Statement.from_json(statement_json) for lang, statement_json in response.result.items()}
 
+    def problem_render_statements(self, problem_id, include_content=None, pin=None):
+        """
+        Renders statements and tutorials of the current working copy, returning an independent
+        HTML and PDF render result per language
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_RENDER_STATEMENTS,
+            args={
+                'problemId': problem_id,
+                'includeContent': include_content,
+                'pin': pin,
+            },
+        )
+        return RenderStatements.from_json(response.result)
+
     def problem_save_statement(self, problem_id, lang, problem_statement, pin=None):
         """
         """
@@ -287,6 +304,21 @@ class Polygon:
             },
         )
         return [File.from_json(js) for js in response.result]
+
+    def problem_view_statement_resource(self, problem_id, name, binary=False, pin=None):
+        """
+        Returns statement resource file, as bytes if binary is true
+        """
+        response = self._request_body(
+            self._PROBLEM_VIEW_STATEMENT_RESOURCE,
+            args={
+                'problemId': problem_id,
+                'name': name,
+                'pin': pin,
+            },
+            binary=binary
+        )
+        return response
 
     def problem_save_statement_resource(self, problem_id, name, file, check_existing=None, pin=None):
         response = self._request_ok_or_raise(
@@ -900,11 +932,17 @@ class Problem:
     def statements(self, pin=None):
         return self._polygon.problem_statements(self.id, pin=self._resolve_pin(pin))
 
+    def render_statements(self, include_content=None, pin=None):
+        return self._polygon.problem_render_statements(self.id, include_content, pin=self._resolve_pin(pin))
+
     def save_statement(self, lang, problem_statement, pin=None):
         return self._polygon.problem_save_statement(self.id, lang, problem_statement, pin=self._resolve_pin(pin))
 
     def statement_resources(self, pin=None):
         return self._polygon.problem_statement_resources(self.id, pin=self._resolve_pin(pin))
+
+    def view_statement_resource(self, name, binary=False, pin=None):
+        return self._polygon.problem_view_statement_resource(self.id, name, binary, pin=self._resolve_pin(pin))
 
     def save_statement_resource(self, name, file, check_existing=None, pin=None):
         return self._polygon.problem_save_statement_resource(self.id, name, file, check_existing,
@@ -1261,6 +1299,85 @@ class Statement:
         self.tutorial = tutorial
         self.show_in_review = show_in_review
         self.show_cautions_and_grammatical_fixes = show_cautions_and_grammatical_fixes
+
+
+class RenderResult:
+    """
+    Object: representing one HTML or PDF render of a statement or a tutorial
+    """
+    _STATUS = "status"
+    _SHA256 = "sha256"
+    _SIZE_BYTES = "sizeBytes"
+    _CONTENT_BASE64 = "contentBase64"
+    _MESSAGE = "message"
+
+    @classmethod
+    def from_json(cls, render_result_json):
+        content_base64 = render_result_json.get(RenderResult._CONTENT_BASE64, None)
+        return cls(
+            status=RenderStatus[render_result_json[RenderResult._STATUS]],
+            sha256=render_result_json.get(RenderResult._SHA256, None),
+            size_bytes=render_result_json.get(RenderResult._SIZE_BYTES, None),
+            content_bytes=None if content_base64 is None else base64.b64decode(content_base64),
+            message=render_result_json.get(RenderResult._MESSAGE, None),
+        )
+
+    def __init__(self, status, sha256=None, size_bytes=None, content_bytes=None, message=None):
+        self.status = status
+        self.sha256 = sha256
+        self.size_bytes = size_bytes
+        self.content_bytes = content_bytes
+        self.message = message
+
+
+class RenderedStatement:
+    """
+    Object: representing the rendered files of one statement or tutorial language
+    """
+    _LANGUAGE = "language"
+    _HTML = "html"
+    _PDF = "pdf"
+
+    @classmethod
+    def from_json(cls, rendered_statement_json):
+        return cls(
+            language=rendered_statement_json[RenderedStatement._LANGUAGE],
+            html=RenderResult.from_json(rendered_statement_json[RenderedStatement._HTML]),
+            pdf=RenderResult.from_json(rendered_statement_json[RenderedStatement._PDF]),
+        )
+
+    def __init__(self, language, html, pdf):
+        self.language = language
+        self.html = html
+        self.pdf = pdf
+
+
+class RenderStatements:
+    """
+    Object: representing rendered statements and tutorials of a problem's current working copy
+    """
+    _REVISION = "revision"
+    _RENDERING_TIME_SECONDS = "renderingTimeSeconds"
+    _STATEMENTS = "statements"
+    _TUTORIALS = "tutorials"
+
+    @classmethod
+    def from_json(cls, render_statements_json):
+        def rendered(field):
+            return [RenderedStatement.from_json(js) for js in render_statements_json[field]]
+
+        return cls(
+            revision=render_statements_json[RenderStatements._REVISION],
+            rendering_time_seconds=render_statements_json[RenderStatements._RENDERING_TIME_SECONDS],
+            statements=rendered(RenderStatements._STATEMENTS),
+            tutorials=rendered(RenderStatements._TUTORIALS),
+        )
+
+    def __init__(self, revision, rendering_time_seconds, statements, tutorials):
+        self.revision = revision
+        self.rendering_time_seconds = rendering_time_seconds
+        self.statements = statements
+        self.tutorials = tutorials
 
 
 class Package:
@@ -1879,6 +1996,14 @@ class CautionCategory(Enum):
     STATEMENT = 1
     STRUCTURE = 2
     ISSUES = 3
+
+    def __str__(self):
+        return self.name
+
+
+class RenderStatus(Enum):
+    OK = 0
+    FAILED = 1
 
     def __str__(self):
         return self.name
