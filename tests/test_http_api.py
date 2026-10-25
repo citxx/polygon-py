@@ -7,6 +7,7 @@ from polygon_api import (
     CautionSeverity,
     FileType,
     Polygon,
+    PolygonRequestFailedException,
     ProblemAccessType,
     RenderStatus,
 )
@@ -401,4 +402,42 @@ def test_commit_result_is_parsed_from_a_full_api_response(local_api_endpoint, po
         'problemId': b'42',
         'minorChanges': b'true',
         'message': b'Fix the checker',
+    })
+
+
+def test_delete_file_sends_the_type_in_lower_case(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_delete_file(PROBLEM_ID, FileType.SOURCE, 'gen.cpp')
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteFile', {
+        'problemId': b'42',
+        'type': b'source',
+        'name': b'gen.cpp',
+    })
+
+
+def test_delete_solution_raises_on_the_http_400_for_a_missing_solution(local_api_endpoint, polygon):
+    """
+    The docs: problem.deleteSolution returns FAILED if there is no such solution. Polygon sends
+    that with HTTP 400, which the wrapper has to read as a FAILED status rather than an HTTP error.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"FAILED","comment":"Solution not found"}',
+        status=400,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    with pytest.raises(PolygonRequestFailedException) as excinfo:
+        polygon.problem_delete_solution(PROBLEM_ID, 'wa.cpp')
+    assert excinfo.value.comment == 'Solution not found'
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteSolution', {
+        'problemId': b'42',
+        'name': b'wa.cpp',
     })
