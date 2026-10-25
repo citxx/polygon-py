@@ -471,3 +471,33 @@ def test_delete_statement_resource_sends_the_name(local_api_endpoint, polygon):
         'problemId': b'42',
         'name': b'picture.png',
     })
+
+
+def test_delete_validator_test_sends_the_index(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_delete_validator_test(PROBLEM_ID, 3)
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteValidatorTest', {
+        'problemId': b'42',
+        'testIndex': b'3',
+    })
+
+
+def test_delete_checker_test_sends_the_index(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_delete_checker_test(PROBLEM_ID, 3)
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteCheckerTest', {
+        'problemId': b'42',
+        'testIndex': b'3',
+    })
