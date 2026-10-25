@@ -1405,11 +1405,13 @@ PIN_ROWS = [
     PinRow('problem_set_checker', (1, 'check.cpp'), 'set_checker', ('check.cpp',), NULL_RESULT),
     PinRow('problem_checker_tests', (1,), 'checker_tests', (), EMPTY_LIST_RESULT),
     PinRow('problem_save_checker_test', (1, 1), 'save_checker_test', (1,), NULL_RESULT),
+    PinRow('problem_delete_checker_test', (1, 1), 'delete_checker_test', (1,), NULL_RESULT),
     PinRow('problem_validator', (1,), 'validator', (), NULL_RESULT),
     PinRow('problem_set_validator', (1, 'val.cpp'), 'set_validator', ('val.cpp',), NULL_RESULT),
     PinRow('problem_extra_validators', (1,), 'extra_validators', (), NULL_RESULT),
     PinRow('problem_validator_tests', (1,), 'validator_tests', (), EMPTY_LIST_RESULT),
     PinRow('problem_save_validator_test', (1, 1), 'save_validator_test', (1,), NULL_RESULT),
+    PinRow('problem_delete_validator_test', (1, 1), 'delete_validator_test', (1,), NULL_RESULT),
     PinRow('problem_interactor', (1,), 'interactor', (), NULL_RESULT),
     PinRow('problem_set_interactor', (1, 'int.cpp'), 'set_interactor', ('int.cpp',), NULL_RESULT),
     PinRow('problem_cautions', (1,), 'cautions', (), CAUTIONS_RESULT),
@@ -2048,3 +2050,55 @@ class TestDeleteStatementResource:
         problem.delete_statement_resource('picture.png')
         assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteStatementResource'
         assert _sent_args(calls)[b'name'] == b'picture.png'
+
+
+class TestDeleteValidatorTest:
+    """
+    problem.deleteValidatorTest takes only the index of the validator test: unlike
+    problem.saveValidatorTest it has no testset or group to narrow it down, as validator tests are
+    numbered across the problem.
+    """
+
+    def test_the_index_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_validator_test(1, 3)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteValidatorTest'
+        assert _sent_args(calls)[b'testIndex'] == b'3'
+
+    def test_nothing_beyond_the_index_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_validator_test(1, 3)
+        assert set(_sent_args(calls)) == {b'problemId', b'testIndex', b'apiKey', b'time', b'apiSig'}
+
+    def test_a_missing_test_raises_with_the_comment(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text='{"status": "FAILED", "comment": "Validator test not found"}')
+        with pytest.raises(PolygonRequestFailedException) as excinfo:
+            polygon.problem_delete_validator_test(1, 3)
+        assert excinfo.value.comment == 'Validator test not found'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_validator_test(3)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteValidatorTest'
+        assert _sent_args(calls)[b'testIndex'] == b'3'
+
+
+class TestDeleteCheckerTest:
+    """problem.deleteCheckerTest takes only the index of the checker test."""
+
+    def test_the_index_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_checker_test(1, 3)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteCheckerTest'
+        assert _sent_args(calls)[b'testIndex'] == b'3'
+
+    def test_nothing_beyond_the_index_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_checker_test(1, 3)
+        assert set(_sent_args(calls)) == {b'problemId', b'testIndex', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_checker_test(3)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteCheckerTest'
+        assert _sent_args(calls)[b'testIndex'] == b'3'
