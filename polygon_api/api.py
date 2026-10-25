@@ -189,6 +189,8 @@ class Polygon:
 
     def problem_commit_changes(self, problem_id, minor_changes=None, message=None, pin=None):
         """
+        Commits the working copy. Having nothing to commit is not a failure: the returned
+        CommitResult then has committed=False and the message "No changes"
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_COMMIT_CHANGES,
@@ -199,7 +201,7 @@ class Polygon:
                 'pin': pin,
             },
         )
-        return response.result
+        return CommitResult.from_json(response.result)
 
     def problem_view_tags(self, problem_id, pin=None):
         """
@@ -1203,6 +1205,28 @@ class ProblemInfo:
         self.memory_limit = memory_limit
         self.well_formed = well_formed
         self.skip_duplicated_tests_validation = skip_duplicated_tests_validation
+
+
+class CommitResult:
+    """
+    Object: representing the result of a problem.commitChanges call
+    """
+    _COMMITTED = "committed"
+    _CONFLICT_OCCURRED = "conflictOccurred"
+    _MESSAGE = "message"
+
+    @classmethod
+    def from_json(cls, commit_result_json):
+        return cls(
+            committed=commit_result_json[CommitResult._COMMITTED],
+            conflict_occurred=commit_result_json[CommitResult._CONFLICT_OCCURRED],
+            message=commit_result_json[CommitResult._MESSAGE],
+        )
+
+    def __init__(self, committed, conflict_occurred, message):
+        self.committed = committed
+        self.conflict_occurred = conflict_occurred
+        self.message = message
 
 
 class Test:

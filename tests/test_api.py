@@ -18,6 +18,7 @@ from polygon_api import (
     CautionSeverity,
     CheckerTest,
     CheckerTestVerdict,
+    CommitResult,
     File,
     FileType,
     ManualTest,
@@ -26,6 +27,7 @@ from polygon_api import (
     PackageState,
     PackageType,
     Polygon,
+    PolygonRequestFailedException,
     Problem,
     ProblemAccess,
     ProblemAccessType,
@@ -377,6 +379,41 @@ class TestProblemInfoParsing:
         })
         assert info.well_formed is None
         assert info.skip_duplicated_tests_validation is None
+
+
+class TestCommitResultParsing:
+    def test_from_json(self):
+        result = CommitResult.from_json({
+            'committed': True,
+            'conflictOccurred': False,
+            'message': 'Changes committed',
+        })
+        assert result.committed is True
+        assert result.conflict_occurred is False
+        assert result.message == 'Changes committed'
+
+    def test_a_commit_without_changes_is_not_committed(self):
+        """
+        The docs: with no changes the status is still OK, and only committed=false tells the
+        caller that no revision was made.
+        """
+        result = CommitResult.from_json({
+            'committed': False,
+            'conflictOccurred': False,
+            'message': 'No changes',
+        })
+        assert result.committed is False
+        assert result.conflict_occurred is False
+        assert result.message == 'No changes'
+
+    def test_a_conflict_is_reported_beside_the_commit_flag(self):
+        result = CommitResult.from_json({
+            'committed': False,
+            'conflictOccurred': True,
+            'message': 'Conflict occurred',
+        })
+        assert result.committed is False
+        assert result.conflict_occurred is True
 
 
 class TestStatementParsing:
@@ -1291,6 +1328,7 @@ EMPTY_LIST_RESULT = '[]'
 EMPTY_OBJECT_RESULT = '{}'
 NULL_RESULT = 'null'
 NOTE_RESULT = '"a note"'
+COMMIT_RESULT = '{"committed": true, "conflictOccurred": false, "message": "Changes committed"}'
 CAUTIONS_RESULT = ('{"common": [], "statement": [], '
                    '"structure": [{"type": "NO_CHECKER", "severity": "HARD", "category": "STRUCTURE", '
                    '"message": "Checker is not set", "parameters": []}], '
@@ -1314,7 +1352,7 @@ PIN_ROWS = [
     PinRow('problem_save_note', (1, 'a note'), 'save_note', ('a note',), NULL_RESULT),
     PinRow('problem_update_working_copy', (1,), 'update_working_copy', (), NULL_RESULT),
     PinRow('problem_discard_working_copy', (1,), 'discard_working_copy', (), NULL_RESULT),
-    PinRow('problem_commit_changes', (1,), 'commit_changes', (), NULL_RESULT),
+    PinRow('problem_commit_changes', (1,), 'commit_changes', (), COMMIT_RESULT),
     PinRow('problem_view_tags', (1,), 'tags', (), NULL_RESULT),
     PinRow('problem_save_tags', (1, ['dp']), 'save_tags', (['dp'],), NULL_RESULT),
     PinRow('problem_view_general_description', (1,), 'general_description', (), NULL_RESULT),
@@ -1837,3 +1875,55 @@ class TestProblemNote:
         problem.save_note('a note')
         assert calls[-1]['url'] == 'https://example.invalid/api/problem.saveNote'
         assert _sent_args(calls)[b'note'] == b'a note'
+
+
+class TestCommitChanges:
+    """
+    problem.commitChanges answers with a CommitResult. A commit with nothing to commit is not a
+    failure: the status stays OK and the result says committed=false, so that is the flag a
+    caller has to look at. A failed commit answers FAILED and raises like any other method.
+    """
+
+    def test_the_flags_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(COMMIT_RESULT))
+        polygon.problem_commit_changes(1, minor_changes=True, message='Fix the checker')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.commitChanges'
+        args = _sent_args(calls)
+        assert args[b'minorChanges'] == b'true'
+        assert args[b'message'] == b'Fix the checker'
+
+    def test_only_the_problem_id_is_sent_when_left_unset(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(COMMIT_RESULT))
+        polygon.problem_commit_changes(1)
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_result_is_parsed_into_a_commit_result(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(COMMIT_RESULT))
+        result = polygon.problem_commit_changes(1)
+        assert isinstance(result, CommitResult)
+        assert result.committed is True
+        assert result.conflict_occurred is False
+        assert result.message == 'Changes committed'
+
+    def test_nothing_to_commit_is_returned_rather_than_raised(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(
+            '{"committed": false, "conflictOccurred": false, "message": "No changes"}'))
+        result = polygon.problem_commit_changes(1)
+        assert result.committed is False
+        assert result.message == 'No changes'
+
+    def test_a_failed_commit_raises_with_the_comment(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text='{"status": "FAILED", "comment": "Working copy has conflicts"}')
+        with pytest.raises(PolygonRequestFailedException) as excinfo:
+            polygon.problem_commit_changes(1)
+        assert excinfo.value.comment == 'Working copy has conflicts'
+
+    def test_the_problem_shortcut_returns_the_same_object(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(COMMIT_RESULT))
+        result = problem.commit_changes(minor_changes=False, message='Fix the checker')
+        assert isinstance(result, CommitResult)
+        assert result.committed is True
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.commitChanges'
+        args = _sent_args(calls)
+        assert args[b'minorChanges'] == b'false'
+        assert args[b'message'] == b'Fix the checker'

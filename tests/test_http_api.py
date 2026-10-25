@@ -378,3 +378,27 @@ def test_a_note_round_trips_as_utf8_text(local_api_endpoint, polygon):
 
     request, = local_api_endpoint.requests
     _assert_signed_request(request, 'problem.note', {'problemId': b'42'})
+
+
+def test_commit_result_is_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    The docs: with no changes problem.commitChanges still answers OK, and the result is the
+    only place that says nothing was committed.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":{"committed":false,"conflictOccurred":false,"message":"No changes"}}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_commit_changes(PROBLEM_ID, minor_changes=True, message='Fix the checker')
+
+    assert result.committed is False
+    assert result.conflict_occurred is False
+    assert result.message == 'No changes'
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.commitChanges', {
+        'problemId': b'42',
+        'minorChanges': b'true',
+        'message': b'Fix the checker',
+    })
