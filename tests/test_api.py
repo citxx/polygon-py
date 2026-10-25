@@ -1310,7 +1310,7 @@ RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000,
 PIN_ROWS = [
     PinRow('problem_info', (1,), 'info', (), PROBLEM_INFO_RESULT),
     PinRow('problem_update_info', (1, ProblemInfo()), 'update_info', (ProblemInfo(),), NULL_RESULT),
-    PinRow('problem_note', (1,), 'view_note', (), NOTE_RESULT),
+    PinRow('problem_view_note', (1,), 'view_note', (), NOTE_RESULT),
     PinRow('problem_save_note', (1, 'a note'), 'save_note', ('a note',), NULL_RESULT),
     PinRow('problem_update_working_copy', (1,), 'update_working_copy', (), NULL_RESULT),
     PinRow('problem_discard_working_copy', (1,), 'discard_working_copy', (), NULL_RESULT),
@@ -1797,22 +1797,23 @@ class TestProblemNote:
     problem.note and problem.saveNote read and write the problem note, which lives outside the
     working copy. Problem already carries a note attribute holding the value that came with the
     problem object (see TestProblemParsing), and an instance attribute shadows a method of the
-    same name, so the fetching shortcut is view_note rather than note.
+    same name, so the fetching shortcut is view_note rather than note, and problem_view_note on
+    Polygon is named to match it.
     """
 
     def test_only_the_problem_id_is_sent(self, polygon, monkeypatch):
         calls = _install_fake_post(monkeypatch, text=_ok_body(NOTE_RESULT))
-        polygon.problem_note(1)
+        polygon.problem_view_note(1)
         assert calls[-1]['url'] == 'https://example.invalid/api/problem.note'
         assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
 
     def test_the_note_is_returned_as_a_string(self, polygon, monkeypatch):
         _install_fake_post(monkeypatch, text=_ok_body(NOTE_RESULT))
-        assert polygon.problem_note(1) == 'a note'
+        assert polygon.problem_view_note(1) == 'a note'
 
     def test_an_unset_note_is_returned_as_an_empty_string(self, polygon, monkeypatch):
         _install_fake_post(monkeypatch, text=_ok_body('""'))
-        assert polygon.problem_note(1) == ''
+        assert polygon.problem_view_note(1) == ''
 
     def test_the_note_is_sent_under_its_documented_name(self, polygon, monkeypatch):
         calls = _install_fake_post(monkeypatch, text=_ok_body(NULL_RESULT))

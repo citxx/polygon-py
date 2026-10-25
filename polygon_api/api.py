@@ -144,9 +144,9 @@ class Polygon:
         )
         return response.result
 
-    def problem_note(self, problem_id, pin=None):
+    def problem_view_note(self, problem_id, pin=None):
         """
-        Returns the problem note, an empty string if it is not set
+        Calls problem.note. Returns the problem note, an empty string if it is not set
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_NOTE,
@@ -978,7 +978,7 @@ class Problem:
         """
         Calls problem.note. The note attribute holds the note that came with the problem object
         """
-        return self._polygon.problem_note(self.id, pin=self._resolve_pin(pin))
+        return self._polygon.problem_view_note(self.id, pin=self._resolve_pin(pin))
 
     def save_note(self, note, pin=None):
         return self._polygon.problem_save_note(self.id, note, pin=self._resolve_pin(pin))

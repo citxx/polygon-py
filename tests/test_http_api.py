@@ -374,7 +374,7 @@ def test_a_note_round_trips_as_utf8_text(local_api_endpoint, polygon):
         headers={'Content-Type': 'application/json; charset=utf-8'},
     )
 
-    assert polygon.problem_note(PROBLEM_ID) == 'не публиковать'
+    assert polygon.problem_view_note(PROBLEM_ID) == 'не публиковать'
 
     request, = local_api_endpoint.requests
     _assert_signed_request(request, 'problem.note', {'problemId': b'42'})
