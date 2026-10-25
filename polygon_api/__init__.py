@@ -6,6 +6,8 @@ from .api import (
     Test,
     ManualTest,
     GeneratedTest,
+    DeleteTestsResult,
+    TestDeletionFailure,
     TestGroup,
     Statement,
     Package,
@@ -26,6 +28,7 @@ from .api import (
     RenderStatements,
     PolygonRequestFailedException,
     HTTPRequestFailedException,
+    DeleteTestsFailedException,
     PointsPolicy,
     FeedbackPolicy,
     FileType,
@@ -40,7 +43,8 @@ from .api import (
     CautionSeverity,
     CautionCategory,
     RenderStatus,
-    ProblemAccessType
+    ProblemAccessType,
+    TestDeletionFailureReason
 )
 
 __version__ = "1.4.0"

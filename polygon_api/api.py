@@ -76,6 +76,7 @@ class Polygon:
     _PROBLEM_EDIT_SOLUTION_EXTRA_TAGS = 'problem.editSolutionExtraTags'
     _PROBLEM_SAVE_SCRIPT = 'problem.saveScript'
     _PROBLEM_SAVE_TEST = 'problem.saveTest'
+    _PROBLEM_DELETE_TEST = 'problem.deleteTest'
     _PROBLEM_SET_TEST_GROUP = 'problem.setTestGroup'
     _PROBLEM_ENABLE_GROUPS = 'problem.enableGroups'
     _PROBLEM_ENABLE_POINTS = 'problem.enablePoints'
@@ -448,6 +449,36 @@ class Polygon:
                 'pin': pin,
             }
         )
+        return response.result
+
+    def problem_delete_test(self, problem_id, testset, test_index=None, test_indices=None, pin=None):
+        """
+        Deletes one or more tests of a testset. Every requested test is checked first: if one of them
+        can not be deleted, none is, and DeleteTestsFailedException lists a failure for each such test.
+        Only a DELETE_FAILED failure comes from the deletion itself, which may have removed some tests
+        by then
+        """
+        if test_index is None and test_indices is None:
+            raise ValueError("Either test_index or test_indices must be specified")
+        if test_index is not None and test_indices is not None:
+            raise ValueError("Only one of test_index or test_indices must be specified")
+
+        test_indices = _comma_separated(test_indices)
+
+        response = self._request(
+            self._PROBLEM_DELETE_TEST,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'testIndex': test_index,
+                'testIndices': test_indices,
+                'pin': pin,
+            }
+        )
+        if response.status != Response.STATUS_OK:
+            if response.result is None:
+                raise PolygonRequestFailedException(response.comment)
+            raise DeleteTestsFailedException(response.comment, DeleteTestsResult.from_json(response.result))
         return response.result
 
     def problem_set_test_group(self, problem_id, testset, test_group, test_index=None, test_indices=None, pin=None):
@@ -1142,6 +1173,10 @@ class Problem:
                                                test_output_for_statements, verify_input_output_for_statements,
                                                check_existing, pin=self._resolve_pin(pin))
 
+    def delete_test(self, testset, test_index=None, test_indices=None, pin=None):
+        return self._polygon.problem_delete_test(self.id, testset, test_index, test_indices,
+                                                 pin=self._resolve_pin(pin))
+
     def set_test_group(self, testset, test_group, test_index=None, test_indices=None, pin=None):
         return self._polygon.problem_set_test_group(self.id, testset, test_group, test_index, test_indices,
                                                     pin=self._resolve_pin(pin))
@@ -1444,6 +1479,44 @@ class GeneratedTest(Test):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
                          input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
         self.script_line = script_line
+
+
+class DeleteTestsResult:
+    """
+    Object: representing the failure details of a problem.deleteTest call
+    """
+    _FAILURES = "failures"
+
+    @classmethod
+    def from_json(cls, result_json):
+        return cls(
+            failures=[TestDeletionFailure.from_json(js) for js in result_json[DeleteTestsResult._FAILURES]],
+        )
+
+    def __init__(self, failures):
+        self.failures = failures
+
+
+class TestDeletionFailure:
+    """
+    Object: representing a test that problem.deleteTest can not delete
+    """
+    _INDEX = "index"
+    _REASON = "reason"
+    _MESSAGE = "message"
+
+    @classmethod
+    def from_json(cls, failure_json):
+        return cls(
+            index=failure_json[TestDeletionFailure._INDEX],
+            reason=TestDeletionFailureReason[failure_json[TestDeletionFailure._REASON]],
+            message=failure_json[TestDeletionFailure._MESSAGE],
+        )
+
+    def __init__(self, index, reason, message):
+        self.index = index
+        self.reason = reason
+        self.message = message
 
 
 class TestGroup:
@@ -2109,6 +2182,14 @@ class PolygonRequestFailedException(Exception):
         self.comment = comment
 
 
+class DeleteTestsFailedException(PolygonRequestFailedException):
+    """Exception raised when problem.deleteTest can not delete some of the requested tests"""
+
+    def __init__(self, comment, result):
+        super().__init__(comment)
+        self.result = result
+
+
 class HTTPRequestFailedException(Exception):
     """Exception raised when Polygon request is failed or Polygon does not return a JSON"""
 
@@ -2256,6 +2337,16 @@ class ProblemAccessType(Enum):
     WRITE = 1
     OWNER = 2
     NONE = 3
+
+    def __str__(self):
+        return self.name
+
+
+class TestDeletionFailureReason(Enum):
+    DUPLICATE = 0
+    NOT_FOUND = 1
+    FREEMARKER_SCRIPT_TEST = 2
+    DELETE_FAILED = 3
 
     def __str__(self):
         return self.name

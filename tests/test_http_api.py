@@ -5,6 +5,7 @@ import pytest
 from polygon_api import (
     CautionCategory,
     CautionSeverity,
+    DeleteTestsFailedException,
     FileType,
     Polygon,
     PolygonRequestFailedException,
@@ -500,4 +501,34 @@ def test_delete_checker_test_sends_the_index(local_api_endpoint, polygon):
     _assert_signed_request(request, 'problem.deleteCheckerTest', {
         'problemId': b'42',
         'testIndex': b'3',
+    })
+
+
+def test_delete_test_failures_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    The docs: when a requested test can not be deleted, problem.deleteTest answers FAILED and still
+    sends a result, a DeleteTestsResult with one failure per such test, and deletes nothing.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"FAILED","comment":"Some tests can not be deleted.","result":{"failures":['
+        b'{"index":2,"reason":"DUPLICATE","message":"Test 2 is requested twice"},'
+        b'{"index":9,"reason":"NOT_FOUND","message":"Test 9 not found"}]}}',
+        status=400,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    with pytest.raises(DeleteTestsFailedException) as excinfo:
+        polygon.problem_delete_test(PROBLEM_ID, 'tests', test_indices=[2, 2, 9])
+
+    assert excinfo.value.comment == 'Some tests can not be deleted.'
+    assert [(failure.index, str(failure.reason)) for failure in excinfo.value.result.failures] == [
+        (2, 'DUPLICATE'),
+        (9, 'NOT_FOUND'),
+    ]
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteTest', {
+        'problemId': b'42',
+        'testset': b'tests',
+        'testIndices': b'2,2,9',
     })
