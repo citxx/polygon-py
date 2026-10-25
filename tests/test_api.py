@@ -23,6 +23,10 @@ from polygon_api import (
     DeleteTestsResult,
     File,
     FileType,
+    Issue,
+    IssueComment,
+    IssueStatus,
+    IssueType,
     ManualTest,
     Package,
     PackageReadinessIssue,
@@ -1093,6 +1097,104 @@ class TestProblemAccessParsing:
         assert access.access_type == ProblemAccessType[access_type]
 
 
+ISSUE_JSON = {
+    'id': 1234,
+    'type': 'BUG',
+    'status': 'CLOSED',
+    'author': 'alice',
+    'assignee': 'bob',
+    'html': "<div class='markup'><p>Test 5 is invalid</p>\n</div>",
+    'creationTimeSeconds': 1790000000,
+    'modificationTimeSeconds': 1790003600,
+    'comments': [
+        {
+            'author': 'bob',
+            'html': "<div class='markup'><p>Fixed in revision 12</p>\n</div>",
+            'creationTimeSeconds': 1790003600,
+            'status': 'CLOSED',
+        },
+    ],
+}
+
+
+class TestIssueParsing:
+    def test_from_json(self):
+        """The example response of problem.issues in the docs."""
+        issue = Issue.from_json(ISSUE_JSON)
+        assert issue.id == 1234
+        assert issue.type == IssueType.BUG
+        assert issue.status == IssueStatus.CLOSED
+        assert issue.author == 'alice'
+        assert issue.assignee == 'bob'
+        assert issue.html == "<div class='markup'><p>Test 5 is invalid</p>\n</div>"
+        assert issue.creation_time_seconds == 1790000000
+        assert issue.modification_time_seconds == 1790003600
+        comment, = issue.comments
+        assert isinstance(comment, IssueComment)
+        assert comment.author == 'bob'
+        assert comment.status == IssueStatus.CLOSED
+
+    def test_assignee_defaults_to_none_when_absent(self):
+        issue_json = dict(ISSUE_JSON, comments=[])
+        del issue_json['assignee']
+        assert Issue.from_json(issue_json).assignee is None
+
+    def test_a_new_issue_parses_with_an_empty_comment_list(self):
+        """The docs: problem.addIssue returns the issue with status OPENED and no comments."""
+        issue = Issue.from_json(dict(ISSUE_JSON, status='OPENED', comments=[]))
+        assert issue.status == IssueStatus.OPENED
+        assert issue.comments == []
+
+    def test_comments_keep_their_chronological_order(self):
+        issue = Issue.from_json(dict(ISSUE_JSON, comments=[
+            {'author': 'bob', 'html': '<p>first</p>', 'creationTimeSeconds': 1790001000},
+            {'author': 'alice', 'html': '<p>second</p>', 'creationTimeSeconds': 1790002000},
+        ]))
+        assert [comment.html for comment in issue.comments] == ['<p>first</p>', '<p>second</p>']
+
+    @pytest.mark.parametrize('issue_type', ['DISCUSSION', 'ENHANCEMENT', 'BUG'])
+    def test_every_documented_type_parses(self, issue_type):
+        assert Issue.from_json(dict(ISSUE_JSON, type=issue_type)).type == IssueType[issue_type]
+
+    @pytest.mark.parametrize('status', ['OPENED', 'REOPENED', 'CLOSED'])
+    def test_every_documented_status_parses(self, status):
+        assert Issue.from_json(dict(ISSUE_JSON, status=status)).status == IssueStatus[status]
+
+    def test_type_and_status_are_serialized_by_name(self):
+        """problem.addIssue and problem.updateIssue take both as their bare names."""
+        assert str(IssueType.ENHANCEMENT) == 'ENHANCEMENT'
+        assert str(IssueStatus.REOPENED) == 'REOPENED'
+
+
+class TestIssueCommentParsing:
+    def test_from_json_with_every_change(self):
+        comment = IssueComment.from_json({
+            'author': 'bob',
+            'html': '<p>Reassigning</p>',
+            'creationTimeSeconds': 1790003600,
+            'status': 'REOPENED',
+            'type': 'ENHANCEMENT',
+            'assignee': 'carol',
+        })
+        assert comment.author == 'bob'
+        assert comment.html == '<p>Reassigning</p>'
+        assert comment.creation_time_seconds == 1790003600
+        assert comment.status == IssueStatus.REOPENED
+        assert comment.type == IssueType.ENHANCEMENT
+        assert comment.assignee == 'carol'
+
+    def test_a_plain_comment_changes_nothing(self):
+        """The docs: status, type and assignee are absent when the comment did not change them."""
+        comment = IssueComment.from_json({
+            'author': 'bob',
+            'html': '<p>Looking into it</p>',
+            'creationTimeSeconds': 1790003600,
+        })
+        assert comment.status is None
+        assert comment.type is None
+        assert comment.assignee is None
+
+
 class TestProblemAccessTypeSerialization:
     @pytest.mark.parametrize('access_type', ['READ', 'WRITE', 'OWNER', 'NONE'])
     def test_every_access_type_is_serialized_by_name(self, access_type):
@@ -1382,6 +1484,9 @@ CAUTIONS_RESULT = ('{"common": [], "statement": [], '
                    '"packageReadinessIssues": [{"type": "CHECKER_IS_NOT_SET", "message": "Checker is not set"}], '
                    '"latestPackageWarnings": ["Solution a.cpp is not tested on all tests"], '
                    '"ai": {"disabled": true, "statements": []}}')
+ISSUE_RESULT = ('{"id": 1234, "type": "BUG", "status": "OPENED", "author": "alice", '
+                '"html": "<p>Test 5 is invalid</p>", "creationTimeSeconds": 1790000000, '
+                '"modificationTimeSeconds": 1790000000, "comments": []}')
 ACCESSES_RESULT = ('[{"login": "@editors", "accessType": "WRITE"}, '
                    '{"login": "alice", "accessType": "READ"}, '
                    '{"login": "owner", "accessType": "OWNER"}]')
@@ -1462,6 +1567,10 @@ PIN_ROWS = [
     PinRow('problem_interactor', (1,), 'interactor', (), NULL_RESULT),
     PinRow('problem_set_interactor', (1, 'int.cpp'), 'set_interactor', ('int.cpp',), NULL_RESULT),
     PinRow('problem_cautions', (1,), 'cautions', (), CAUTIONS_RESULT),
+    PinRow('problem_issues', (1,), 'issues', (), EMPTY_LIST_RESULT),
+    PinRow('problem_add_issue', (1, IssueType.BUG, 'Test 5 is invalid'), 'add_issue',
+           (IssueType.BUG, 'Test 5 is invalid'), ISSUE_RESULT),
+    PinRow('problem_update_issue', (1, 1234), 'update_issue', (1234,), ISSUE_RESULT),
     PinRow('problem_accesses', (1,), 'accesses', (), ACCESSES_RESULT),
     PinRow('problem_set_access', (1, 'alice', ProblemAccessType.READ), 'set_access',
            ('alice', ProblemAccessType.READ), NULL_RESULT),
@@ -2218,3 +2327,135 @@ class TestDeleteTest:
         args = _sent_args(calls)
         assert args[b'testset'] == b'tests'
         assert args[b'testIndices'] == b'3,4'
+
+
+class TestProblemIssues:
+    """problem.issues takes no parameters of its own and returns every issue with its comments."""
+
+    def test_only_the_problem_id_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        polygon.problem_issues(1)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.issues'
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_every_issue_is_parsed_into_an_issue(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body('[%s, %s]' % (ISSUE_RESULT, ISSUE_RESULT)))
+        issues = polygon.problem_issues(1)
+        assert [type(issue) for issue in issues] == [Issue] * 2
+        assert issues[0].id == 1234
+        assert issues[0].status == IssueStatus.OPENED
+
+    def test_a_problem_without_issues_parses_into_an_empty_list(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        assert polygon.problem_issues(1) == []
+
+    def test_the_problem_shortcut_returns_the_same_objects(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body('[%s]' % ISSUE_RESULT))
+        issue, = problem.issues()
+        assert issue.id == 1234
+
+
+class TestAddIssue:
+    """problem.addIssue takes the issue type, the Markdown content and an optional assignee."""
+
+    def test_the_arguments_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        polygon.problem_add_issue(1, IssueType.BUG, 'Test 5 is invalid', assignee='bob')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.addIssue'
+        args = _sent_args(calls)
+        assert args[b'type'] == b'BUG'
+        assert args[b'content'] == b'Test 5 is invalid'
+        assert args[b'assignee'] == b'bob'
+
+    def test_the_assignee_is_omitted_when_left_unset(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        polygon.problem_add_issue(1, IssueType.DISCUSSION, 'Should n be up to 10^9?')
+        assert set(_sent_args(calls)) == {b'problemId', b'type', b'content', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_created_issue_is_returned(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        issue = polygon.problem_add_issue(1, IssueType.BUG, 'Test 5 is invalid')
+        assert isinstance(issue, Issue)
+        assert issue.id == 1234
+        assert issue.comments == []
+
+    def test_a_bare_string_type_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_add_issue(1, 'BUG', 'Test 5 is invalid')
+
+    def test_a_type_from_another_enum_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_add_issue(1, IssueStatus.OPENED, 'Test 5 is invalid')
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        issue = problem.add_issue(IssueType.ENHANCEMENT, 'Add a test with n = 1', assignee='bob')
+        assert issue.id == 1234
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.addIssue'
+        args = _sent_args(calls)
+        assert args[b'type'] == b'ENHANCEMENT'
+        assert args[b'content'] == b'Add a test with n = 1'
+        assert args[b'assignee'] == b'bob'
+
+
+class TestUpdateIssue:
+    """
+    problem.updateIssue adds a comment to an issue and/or changes its status, type and assignee.
+    Every change is optional, and a parameter that is not passed is not sent, so it stays as it is.
+    """
+
+    def test_the_arguments_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        polygon.problem_update_issue(1, 1234, comment='Fixed in revision 12', status=IssueStatus.CLOSED,
+                                     issue_type=IssueType.ENHANCEMENT, assignee='carol')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.updateIssue'
+        args = _sent_args(calls)
+        assert args[b'issueId'] == b'1234'
+        assert args[b'comment'] == b'Fixed in revision 12'
+        assert args[b'status'] == b'CLOSED'
+        assert args[b'type'] == b'ENHANCEMENT'
+        assert args[b'assignee'] == b'carol'
+
+    def test_a_comment_alone_sends_nothing_else(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        polygon.problem_update_issue(1, 1234, comment='Looking into it')
+        assert set(_sent_args(calls)) == {b'problemId', b'issueId', b'comment', b'apiKey', b'time', b'apiSig'}
+
+    def test_an_empty_assignee_is_sent_rather_than_dropped(self, polygon, monkeypatch):
+        """The docs: an empty assignee removes it, while an absent one leaves it unchanged."""
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        polygon.problem_update_issue(1, 1234, assignee='')
+        assert _sent_args(calls)[b'assignee'] == b''
+
+    def test_the_updated_issue_is_returned(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        issue = polygon.problem_update_issue(1, 1234, comment='Looking into it')
+        assert isinstance(issue, Issue)
+        assert issue.id == 1234
+
+    def test_a_bare_string_status_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_update_issue(1, 1234, status='CLOSED')
+
+    def test_a_bare_string_type_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_update_issue(1, 1234, issue_type='BUG')
+
+    def test_a_status_and_a_type_must_not_be_swapped(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_update_issue(1, 1234, status=IssueType.BUG)
+        with pytest.raises(ValueError):
+            polygon.problem_update_issue(1, 1234, issue_type=IssueStatus.CLOSED)
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ISSUE_RESULT))
+        issue = problem.update_issue(1234, comment='Reopening', status=IssueStatus.REOPENED,
+                                     issue_type=IssueType.BUG, assignee='')
+        assert issue.id == 1234
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.updateIssue'
+        args = _sent_args(calls)
+        assert args[b'issueId'] == b'1234'
+        assert args[b'comment'] == b'Reopening'
+        assert args[b'status'] == b'REOPENED'
+        assert args[b'type'] == b'BUG'
+        assert args[b'assignee'] == b''

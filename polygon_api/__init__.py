@@ -23,6 +23,8 @@ from .api import (
     AiTips,
     ProblemCautions,
     ProblemAccess,
+    Issue,
+    IssueComment,
     RenderResult,
     RenderedStatement,
     RenderStatements,
@@ -44,7 +46,9 @@ from .api import (
     CautionCategory,
     RenderStatus,
     ProblemAccessType,
-    TestDeletionFailureReason
+    TestDeletionFailureReason,
+    IssueType,
+    IssueStatus
 )
 
 __version__ = "1.4.0"

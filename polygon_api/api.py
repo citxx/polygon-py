@@ -92,6 +92,9 @@ class Polygon:
     _PROBLEM_PACKAGE = 'problem.package'
     _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
     _PROBLEM_CAUTIONS = 'problem.cautions'
+    _PROBLEM_ISSUES = 'problem.issues'
+    _PROBLEM_ADD_ISSUE = 'problem.addIssue'
+    _PROBLEM_UPDATE_ISSUE = 'problem.updateIssue'
     _PROBLEM_ACCESSES = 'problem.accesses'
     _PROBLEM_SET_ACCESS = 'problem.setAccess'
 
@@ -965,6 +968,63 @@ class Polygon:
         )
         return ProblemCautions.from_json(response.result)
 
+    def problem_issues(self, problem_id, pin=None):
+        """
+        Returns the issues of the problem with their comments, the most recently changed issue first
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_ISSUES,
+            args={'problemId': problem_id, 'pin': pin},
+        )
+        return [Issue.from_json(js) for js in response.result]
+
+    def problem_add_issue(self, problem_id, issue_type, content, assignee=None, pin=None):
+        """
+        Creates an issue with Markdown content and returns it. Applies at once, problem.commitChanges
+        is not needed
+        """
+        if not isinstance(issue_type, IssueType):
+            raise ValueError(
+                "Expected IssueType instance for issue_type argument, but %s found" % type(issue_type))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_ADD_ISSUE,
+            args={
+                'problemId': problem_id,
+                'type': issue_type,
+                'content': content,
+                'assignee': assignee,
+                'pin': pin,
+            },
+        )
+        return Issue.from_json(response.result)
+
+    def problem_update_issue(self, problem_id, issue_id, comment=None, status=None, issue_type=None, assignee=None,
+                             pin=None):
+        """
+        Comments on an issue and/or changes its status, type and assignee, and returns the updated
+        issue. A change left as None is not made; an empty assignee unassigns the issue. Applies at
+        once, problem.commitChanges is not needed
+        """
+        if status is not None and not isinstance(status, IssueStatus):
+            raise ValueError(
+                "Expected IssueStatus instance for status argument, but %s found" % type(status))
+        if issue_type is not None and not isinstance(issue_type, IssueType):
+            raise ValueError(
+                "Expected IssueType instance for issue_type argument, but %s found" % type(issue_type))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_UPDATE_ISSUE,
+            args={
+                'problemId': problem_id,
+                'issueId': issue_id,
+                'comment': comment,
+                'status': status,
+                'type': issue_type,
+                'assignee': assignee,
+                'pin': pin,
+            },
+        )
+        return Issue.from_json(response.result)
+
     def problem_accesses(self, problem_id, pin=None):
         """
         Returns the direct access-control entries of the problem, users and user groups alike
@@ -1304,6 +1364,16 @@ class Problem:
 
     def cautions(self, pin=None):
         return self._polygon.problem_cautions(self.id, pin=self._resolve_pin(pin))
+
+    def issues(self, pin=None):
+        return self._polygon.problem_issues(self.id, pin=self._resolve_pin(pin))
+
+    def add_issue(self, issue_type, content, assignee=None, pin=None):
+        return self._polygon.problem_add_issue(self.id, issue_type, content, assignee, pin=self._resolve_pin(pin))
+
+    def update_issue(self, issue_id, comment=None, status=None, issue_type=None, assignee=None, pin=None):
+        return self._polygon.problem_update_issue(self.id, issue_id, comment, status, issue_type, assignee,
+                                                  pin=self._resolve_pin(pin))
 
     def accesses(self, pin=None):
         return self._polygon.problem_accesses(self.id, pin=self._resolve_pin(pin))
@@ -2049,6 +2119,80 @@ class ProblemAccess:
         self.access_type = access_type
 
 
+class Issue:
+    """
+    Object: representing an issue of a Polygon problem
+    """
+    _ID = "id"
+    _TYPE = "type"
+    _STATUS = "status"
+    _AUTHOR = "author"
+    _ASSIGNEE = "assignee"
+    _HTML = "html"
+    _CREATION_TIME_SECONDS = "creationTimeSeconds"
+    _MODIFICATION_TIME_SECONDS = "modificationTimeSeconds"
+    _COMMENTS = "comments"
+
+    @classmethod
+    def from_json(cls, issue_json):
+        return cls(
+            issue_id=issue_json[Issue._ID],
+            type=IssueType[issue_json[Issue._TYPE]],
+            status=IssueStatus[issue_json[Issue._STATUS]],
+            author=issue_json[Issue._AUTHOR],
+            assignee=issue_json.get(Issue._ASSIGNEE, None),
+            html=issue_json[Issue._HTML],
+            creation_time_seconds=issue_json[Issue._CREATION_TIME_SECONDS],
+            modification_time_seconds=issue_json[Issue._MODIFICATION_TIME_SECONDS],
+            comments=[IssueComment.from_json(js) for js in issue_json[Issue._COMMENTS]],
+        )
+
+    def __init__(self, issue_id, type, status, author, assignee, html, creation_time_seconds,
+                 modification_time_seconds, comments):
+        self.id = issue_id
+        self.type = type
+        self.status = status
+        self.author = author
+        self.assignee = assignee
+        self.html = html
+        self.creation_time_seconds = creation_time_seconds
+        self.modification_time_seconds = modification_time_seconds
+        self.comments = comments
+
+
+class IssueComment:
+    """
+    Object: representing a comment on a problem issue, with the changes it made to the issue
+    """
+    _AUTHOR = "author"
+    _HTML = "html"
+    _CREATION_TIME_SECONDS = "creationTimeSeconds"
+    _STATUS = "status"
+    _TYPE = "type"
+    _ASSIGNEE = "assignee"
+
+    @classmethod
+    def from_json(cls, comment_json):
+        status = comment_json.get(IssueComment._STATUS)
+        issue_type = comment_json.get(IssueComment._TYPE)
+        return cls(
+            author=comment_json[IssueComment._AUTHOR],
+            html=comment_json[IssueComment._HTML],
+            creation_time_seconds=comment_json[IssueComment._CREATION_TIME_SECONDS],
+            status=None if status is None else IssueStatus[status],
+            type=None if issue_type is None else IssueType[issue_type],
+            assignee=comment_json.get(IssueComment._ASSIGNEE, None),
+        )
+
+    def __init__(self, author, html, creation_time_seconds, status=None, type=None, assignee=None):
+        self.author = author
+        self.html = html
+        self.creation_time_seconds = creation_time_seconds
+        self.status = status
+        self.type = type
+        self.assignee = assignee
+
+
 class Request:
     """
     Request to Polygon API.
@@ -2347,6 +2491,24 @@ class TestDeletionFailureReason(Enum):
     NOT_FOUND = 1
     FREEMARKER_SCRIPT_TEST = 2
     DELETE_FAILED = 3
+
+    def __str__(self):
+        return self.name
+
+
+class IssueType(Enum):
+    DISCUSSION = 0
+    ENHANCEMENT = 1
+    BUG = 2
+
+    def __str__(self):
+        return self.name
+
+
+class IssueStatus(Enum):
+    OPENED = 0
+    REOPENED = 1
+    CLOSED = 2
 
     def __str__(self):
         return self.name
