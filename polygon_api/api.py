@@ -66,7 +66,9 @@ class Polygon:
     _PROBLEM_SET_CHECKER = 'problem.setChecker'
     _PROBLEM_SET_INTERACTOR = 'problem.setInteractor'
     _PROBLEM_SAVE_FILE = 'problem.saveFile'
+    _PROBLEM_DELETE_FILE = 'problem.deleteFile'
     _PROBLEM_SAVE_SOLUTION = 'problem.saveSolution'
+    _PROBLEM_DELETE_SOLUTION = 'problem.deleteSolution'
     _PROBLEM_EDIT_SOLUTION_EXTRA_TAGS = 'problem.editSolutionExtraTags'
     _PROBLEM_SAVE_SCRIPT = 'problem.saveScript'
     _PROBLEM_SAVE_TEST = 'problem.saveTest'
@@ -614,6 +616,22 @@ class Polygon:
         )
         return response.result
 
+    def problem_delete_file(self, problem_id, type, name, pin=None):
+        """
+        Deletes a resource, source or aux file. olymp.sty, problem.tex and statements.ftl can't be
+        deleted, nor a source file used as a generator in a test script or in a stress
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_FILE,
+            args={
+                'problemId': problem_id,
+                'type': type,
+                'name': name,
+                'pin': pin,
+            }
+        )
+        return response.result
+
     def problem_save_solution(self, problem_id, name, file, tag, source_type=None, check_existing=None, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_SOLUTION,
@@ -624,6 +642,20 @@ class Polygon:
                 'sourceType': source_type,
                 'tag': tag,
                 'checkExisting': check_existing,
+                'pin': pin,
+            }
+        )
+        return response.result
+
+    def problem_delete_solution(self, problem_id, name, pin=None):
+        """
+        Deletes a solution and removes it from the stresses; a stress left without solutions is deleted
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_SOLUTION,
+            args={
+                'problemId': problem_id,
+                'name': name,
                 'pin': pin,
             }
         )
@@ -1073,9 +1105,15 @@ class Problem:
                                                resource_advanced_properties, check_existing,
                                                pin=self._resolve_pin(pin))
 
+    def delete_file(self, type, name, pin=None):
+        return self._polygon.problem_delete_file(self.id, type, name, pin=self._resolve_pin(pin))
+
     def save_solution(self, name, file, tag, source_type=None, check_existing=None, pin=None):
         return self._polygon.problem_save_solution(self.id, name, file, tag, source_type, check_existing,
                                                    pin=self._resolve_pin(pin))
+
+    def delete_solution(self, name, pin=None):
+        return self._polygon.problem_delete_solution(self.id, name, pin=self._resolve_pin(pin))
 
     def edit_solution_extra_tags(self, remove, name, testset=None, test_group=None, tag=None, pin=None):
         return self._polygon.problem_edit_solution_extra_tags(self.id, remove, name, testset, test_group, tag,

@@ -1392,6 +1392,9 @@ PIN_ROWS = [
            (FileType.SOURCE, 'a.cpp', 'int main() {}'), NULL_RESULT),
     PinRow('problem_save_solution', (1, 'a.cpp', 'int main() {}', SolutionTag.MA), 'save_solution',
            ('a.cpp', 'int main() {}', SolutionTag.MA), NULL_RESULT),
+    PinRow('problem_delete_file', (1, FileType.SOURCE, 'a.cpp'), 'delete_file',
+           (FileType.SOURCE, 'a.cpp'), NULL_RESULT),
+    PinRow('problem_delete_solution', (1, 'a.cpp'), 'delete_solution', ('a.cpp',), NULL_RESULT),
     PinRow('problem_save_script', (1, 'tests', 'gen 1'), 'save_script', ('tests', 'gen 1'), NULL_RESULT),
     PinRow('problem_edit_solution_extra_tags', (1, False, 'a.cpp', 'tests'), 'edit_solution_extra_tags',
            (False, 'a.cpp', 'tests'), NULL_RESULT),
@@ -1927,3 +1930,67 @@ class TestCommitChanges:
         args = _sent_args(calls)
         assert args[b'minorChanges'] == b'false'
         assert args[b'message'] == b'Fix the checker'
+
+
+class TestDeleteSolution:
+    """
+    problem.deleteSolution takes the exact solution name and answers FAILED when there is no
+    such solution.
+    """
+
+    def test_the_name_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_solution(1, 'wa.cpp')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteSolution'
+        assert _sent_args(calls)[b'name'] == b'wa.cpp'
+
+    def test_nothing_beyond_the_name_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_solution(1, 'wa.cpp')
+        assert set(_sent_args(calls)) == {b'problemId', b'name', b'apiKey', b'time', b'apiSig'}
+
+    def test_a_missing_solution_raises_with_the_comment(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text='{"status": "FAILED", "comment": "Solution not found"}')
+        with pytest.raises(PolygonRequestFailedException) as excinfo:
+            polygon.problem_delete_solution(1, 'wa.cpp')
+        assert excinfo.value.comment == 'Solution not found'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_solution('wa.cpp')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteSolution'
+        assert _sent_args(calls)[b'name'] == b'wa.cpp'
+
+
+class TestDeleteFile:
+    """
+    problem.deleteFile takes the file type and the exact file name, the same pair that
+    problem.viewFile and problem.saveFile take.
+    """
+
+    @pytest.mark.parametrize('file_type, sent_type', [
+        (FileType.RESOURCE, b'resource'),
+        (FileType.SOURCE, b'source'),
+        (FileType.AUX, b'aux'),
+    ])
+    def test_the_type_and_name_are_sent_under_their_documented_names(
+            self, polygon, monkeypatch, file_type, sent_type):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_file(1, file_type, 'gen.cpp')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteFile'
+        args = _sent_args(calls)
+        assert args[b'type'] == sent_type
+        assert args[b'name'] == b'gen.cpp'
+
+    def test_nothing_beyond_the_type_and_name_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_file(1, FileType.SOURCE, 'gen.cpp')
+        assert set(_sent_args(calls)) == {b'problemId', b'type', b'name', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_file(FileType.AUX, 'notes.txt')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteFile'
+        args = _sent_args(calls)
+        assert args[b'type'] == b'aux'
+        assert args[b'name'] == b'notes.txt'
