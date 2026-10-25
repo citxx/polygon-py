@@ -1363,11 +1363,14 @@ PIN_ROWS = [
     PinRow('problem_render_statements', (1,), 'render_statements', (), RENDER_STATEMENTS_RESULT),
     PinRow('problem_save_statement', (1, 'english', Statement()), 'save_statement',
            ('english', Statement()), NULL_RESULT),
+    PinRow('problem_delete_statement', (1, 'english'), 'delete_statement', ('english',), NULL_RESULT),
     PinRow('problem_statement_resources', (1,), 'statement_resources', (), EMPTY_LIST_RESULT),
     PinRow('problem_view_statement_resource', (1, 'olymp.sty'), 'view_statement_resource',
            ('olymp.sty',), NULL_RESULT),
     PinRow('problem_save_statement_resource', (1, 'olymp.sty', 'body'), 'save_statement_resource',
            ('olymp.sty', 'body'), NULL_RESULT),
+    PinRow('problem_delete_statement_resource', (1, 'olymp.sty'), 'delete_statement_resource',
+           ('olymp.sty',), NULL_RESULT),
     PinRow('problem_enable_groups', (1, 'tests', True), 'enable_groups', ('tests', True), NULL_RESULT),
     PinRow('problem_enable_points', (1, True), 'enable_points', (True,), NULL_RESULT),
     PinRow('problem_save_test', (1, 'tests', 1, '1 2'), 'save_test', ('tests', 1, '1 2'), NULL_RESULT),
@@ -1994,3 +1997,54 @@ class TestDeleteFile:
         args = _sent_args(calls)
         assert args[b'type'] == b'aux'
         assert args[b'name'] == b'notes.txt'
+
+
+class TestDeleteStatement:
+    """
+    problem.deleteStatement takes the language exactly as problem.statements returns it and
+    answers FAILED when there is no statement in that language.
+    """
+
+    def test_the_language_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_statement(1, 'russian')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteStatement'
+        assert _sent_args(calls)[b'lang'] == b'russian'
+
+    def test_nothing_beyond_the_language_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_statement(1, 'russian')
+        assert set(_sent_args(calls)) == {b'problemId', b'lang', b'apiKey', b'time', b'apiSig'}
+
+    def test_a_missing_statement_raises_with_the_comment(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text='{"status": "FAILED", "comment": "Statement not found"}')
+        with pytest.raises(PolygonRequestFailedException) as excinfo:
+            polygon.problem_delete_statement(1, 'russian')
+        assert excinfo.value.comment == 'Statement not found'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_statement('russian')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteStatement'
+        assert _sent_args(calls)[b'lang'] == b'russian'
+
+
+class TestDeleteStatementResource:
+    """problem.deleteStatementResource takes the exact resource name as problem.statementResources returns it."""
+
+    def test_the_name_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_statement_resource(1, 'picture.png')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteStatementResource'
+        assert _sent_args(calls)[b'name'] == b'picture.png'
+
+    def test_nothing_beyond_the_name_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_statement_resource(1, 'picture.png')
+        assert set(_sent_args(calls)) == {b'problemId', b'name', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_statement_resource('picture.png')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.deleteStatementResource'
+        assert _sent_args(calls)[b'name'] == b'picture.png'
