@@ -272,3 +272,19 @@ def test_rendered_statements_are_parsed_from_a_full_api_response(local_api_endpo
         'problemId': b'42',
         'includeContent': b'true',
     })
+
+
+def test_clear_script_sends_the_testset_and_parses_the_result(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":true}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_clear_script(PROBLEM_ID, 'tests')
+
+    assert result is True
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.clearScript', {
+        'problemId': b'42',
+        'testset': b'tests',
+    })

@@ -56,6 +56,7 @@ class Polygon:
     _PROBLEM_VIEW_FILE = 'problem.viewFile'
     _PROBLEM_VIEW_SOLUTION = 'problem.viewSolution'
     _PROBLEM_SCRIPT = 'problem.script'
+    _PROBLEM_CLEAR_SCRIPT = 'problem.clearScript'
     _PROBLEM_TESTS = 'problem.tests'
     _PROBLEM_TEST_INPUT = 'problem.testInput'
     _PROBLEM_TEST_ANSWER = 'problem.testAnswer'
@@ -452,6 +453,20 @@ class Polygon:
             }
         )
         return response
+
+    def problem_clear_script(self, problem_id, testset, pin=None):
+        """
+        Clears test generation script for the specified testset
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_CLEAR_SCRIPT,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'pin': pin,
+            }
+        )
+        return response.result
 
     def problem_test_input(self, problem_id, testset, test_index, binary=False, pin=None):
         """
@@ -1053,6 +1068,9 @@ class Problem:
 
     def script(self, testset, pin=None):
         return self._polygon.problem_script(self.id, testset, pin=self._resolve_pin(pin))
+
+    def clear_script(self, testset, pin=None):
+        return self._polygon.problem_clear_script(self.id, testset, pin=self._resolve_pin(pin))
 
     def test_input(self, testset, test_index, binary=False, pin=None):
         return self._polygon.problem_test_input(self.id, testset, test_index, binary, pin=self._resolve_pin(pin))

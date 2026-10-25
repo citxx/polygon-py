@@ -1297,6 +1297,7 @@ PIN_ROWS = [
     PinRow(None, None, 'files_aux', (), FILES_RESULT),
     PinRow('problem_tests', (1, 'tests'), 'tests', ('tests',), EMPTY_LIST_RESULT),
     PinRow('problem_script', (1, 'tests'), 'script', ('tests',), NULL_RESULT),
+    PinRow('problem_clear_script', (1, 'tests'), 'clear_script', ('tests',), NULL_RESULT),
     PinRow('problem_test_input', (1, 'tests', 1), 'test_input', ('tests', 1), NULL_RESULT),
     PinRow('problem_test_answer', (1, 'tests', 1), 'test_answer', ('tests', 1), NULL_RESULT),
     PinRow('problem_save_test_group', (1, 'tests', 'first'), 'save_test_group', ('tests', 'first'), NULL_RESULT),
@@ -1645,3 +1646,27 @@ class TestViewStatementResource:
         assert problem.view_statement_resource('olymp.sty') == TEXT_BODY
         assert post_calls[-1]['url'] == 'https://example.invalid/api/problem.viewStatementResource'
         assert _sent_args(post_calls)[b'name'] == b'olymp.sty'
+
+
+class TestClearScript:
+    """
+    problem.clearScript is problem.saveScript with the source dropped: it clears the generation
+    script of one testset, so the testset is the only argument the request carries.
+    """
+
+    def test_the_testset_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_clear_script(1, 'tests')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.clearScript'
+        assert _sent_args(calls)[b'testset'] == b'tests'
+
+    def test_nothing_beyond_the_testset_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_clear_script(1, 'tests')
+        assert set(_sent_args(calls)) == {b'problemId', b'testset', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.clear_script('tests')
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.clearScript'
+        assert _sent_args(calls)[b'testset'] == b'tests'
