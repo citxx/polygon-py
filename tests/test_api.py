@@ -294,6 +294,41 @@ class TestProblemParsing:
         assert problem.working_copy_revision is None
 
 
+class TestTestPointsParsing:
+    """
+    Test points are a double with at most two digits after the decimal point. Reading them through
+    int() truncated 2.5 to 2, so a save of a test read back from Polygon wrote the wrong points,
+    and a value sent as a string such as '2.5' raised instead.
+    """
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': False},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': False},
+    ], ids=['manual', 'generated'])
+    @pytest.mark.parametrize('points', [2.5, '2.5'], ids=['number', 'string'])
+    def test_fractional_points_are_kept(self, polygon, test_json, points):
+        test = api.Test.from_json(polygon, 1, 'tests', dict(test_json, points=points))
+        assert test.points == 2.5
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': False},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': False},
+    ], ids=['manual', 'generated'])
+    def test_whole_points_are_a_float(self, polygon, test_json):
+        test = api.Test.from_json(polygon, 1, 'tests', dict(test_json, points=10))
+        assert isinstance(test.points, float)
+        assert test.points == 10.0
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': False},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': False},
+    ], ids=['manual', 'generated'])
+    def test_absent_points_are_zero(self, polygon, test_json):
+        test = api.Test.from_json(polygon, 1, 'tests', test_json)
+        assert isinstance(test.points, float)
+        assert test.points == 0.0
+
+
 class TestManualTestInputBytes:
     """
     problem.tests returns a manual test input twice: input is a lossy UTF-8 view, inputBase64 is
