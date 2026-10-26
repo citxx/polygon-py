@@ -332,6 +332,31 @@ class TestManualTestInputBytes:
         assert test.input_bytes is None
 
 
+class TestVerifyInputOutputForStatementsParsing:
+    """
+    problem.tests returns verifyInputOutputForStatements as a JSON boolean. Comparing it with the
+    string 'true' turned every value into False, so a save of a test read back from Polygon
+    silently switched the verification off.
+    """
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': True},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': True},
+    ], ids=['manual', 'generated'])
+    @pytest.mark.parametrize('verify', [True, False])
+    def test_boolean_is_kept(self, polygon, test_json, verify):
+        test = api.Test.from_json(polygon, 1, 'tests', dict(test_json, verifyInputOutputForStatements=verify))
+        assert test.verify_input_output_for_statements is verify
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': True},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': True},
+    ], ids=['manual', 'generated'])
+    def test_absent_is_none(self, polygon, test_json):
+        test = api.Test.from_json(polygon, 1, 'tests', test_json)
+        assert test.verify_input_output_for_statements is None
+
+
 class TestProblemInfoParsing:
     """
     problem.info returns wellFormed and skipDuplicatedTestsValidation next to the limits. Both
