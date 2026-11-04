@@ -53,8 +53,10 @@ class Polygon:
     _PROBLEM_INTERACTOR = 'problem.interactor'
     _PROBLEM_VALIDATOR_TESTS = 'problem.validatorTests'
     _PROBLEM_SAVE_VALIDATOR_TEST = 'problem.saveValidatorTest'
+    _PROBLEM_DELETE_VALIDATOR_TEST = 'problem.deleteValidatorTest'
     _PROBLEM_CHECKER_TESTS = 'problem.checkerTests'
     _PROBLEM_SAVE_CHECKER_TEST = 'problem.saveCheckerTest'
+    _PROBLEM_DELETE_CHECKER_TEST = 'problem.deleteCheckerTest'
     _PROBLEM_FILES = 'problem.files'
     _PROBLEM_SOLUTIONS = 'problem.solutions'
     _PROBLEM_VIEW_FILE = 'problem.viewFile'
@@ -776,6 +778,20 @@ class Polygon:
         )
         return response.result
 
+    def problem_delete_checker_test(self, problem_id, test_index, pin=None):
+        """
+        Deletes a checker test. The indices of the other checker tests do not change
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_CHECKER_TEST,
+            args={
+                'problemId': problem_id,
+                'testIndex': test_index,
+                'pin': pin,
+            },
+        )
+        return response.result
+
     def problem_validator(self, problem_id, pin=None):
         response = self._request_ok_or_raise(
             self._PROBLEM_VALIDATOR,
@@ -832,6 +848,20 @@ class Polygon:
                 'testGroup': test_group,
                 'testset': testset,
                 'checkExisting': check_existing,
+                'pin': pin,
+            },
+        )
+        return response.result
+
+    def problem_delete_validator_test(self, problem_id, test_index, pin=None):
+        """
+        Deletes a validator test. The indices of the other validator tests do not change
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_VALIDATOR_TEST,
+            args={
+                'problemId': problem_id,
+                'testIndex': test_index,
                 'pin': pin,
             },
         )
@@ -1168,6 +1198,9 @@ class Problem:
                                                        test_answer, test_verdict, check_existing,
                                                        pin=self._resolve_pin(pin))
 
+    def delete_checker_test(self, test_index, pin=None):
+        return self._polygon.problem_delete_checker_test(self.id, test_index, pin=self._resolve_pin(pin))
+
     def validator(self, pin=None):
         return self._polygon.problem_validator(self.id, pin=self._resolve_pin(pin))
 
@@ -1182,6 +1215,9 @@ class Problem:
         return self._polygon.problem_save_validator_test(self.id, test_index, test_input, test_verdict,
                                                          test_group, testset, check_existing,
                                                          pin=self._resolve_pin(pin))
+
+    def delete_validator_test(self, test_index, pin=None):
+        return self._polygon.problem_delete_validator_test(self.id, test_index, pin=self._resolve_pin(pin))
 
     def extra_validators(self, pin=None):
         return self._polygon.problem_extra_validators(self.id, pin=self._resolve_pin(pin))
