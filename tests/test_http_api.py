@@ -7,6 +7,8 @@ from polygon_api import (
     CautionSeverity,
     DeleteTestsFailedException,
     FileType,
+    IssueStatus,
+    IssueType,
     Polygon,
     PolygonRequestFailedException,
     ProblemAccessType,
@@ -531,4 +533,82 @@ def test_delete_test_failures_are_parsed_from_a_full_api_response(local_api_endp
         'problemId': b'42',
         'testset': b'tests',
         'testIndices': b'2,2,9',
+    })
+
+
+def test_issues_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """The example response of problem.issues in the docs."""
+    response_body = (
+        '{"status":"OK","result":[{"id":1234,"type":"BUG","status":"CLOSED","author":"alice",'
+        '"assignee":"bob","html":"<div class=\'markup\'><p>Test 5 is invalid</p>\\n</div>",'
+        '"creationTimeSeconds":1790000000,"modificationTimeSeconds":1790003600,"comments":['
+        '{"author":"bob","html":"<div class=\'markup\'><p>Fixed in revision 12</p>\\n</div>",'
+        '"creationTimeSeconds":1790003600,"status":"CLOSED"}]}]}'
+    ).encode('utf-8')
+    local_api_endpoint.enqueue_response(
+        response_body,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    issue, = polygon.problem_issues(PROBLEM_ID)
+
+    assert issue.id == 1234
+    assert issue.type == IssueType.BUG
+    assert issue.status == IssueStatus.CLOSED
+    assert issue.assignee == 'bob'
+    assert issue.html == "<div class='markup'><p>Test 5 is invalid</p>\n</div>"
+    comment, = issue.comments
+    assert comment.author == 'bob'
+    assert comment.status == IssueStatus.CLOSED
+    assert comment.type is None
+    assert comment.assignee is None
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.issues', {'problemId': b'42'})
+
+
+def test_add_issue_sends_markdown_content_as_utf8(local_api_endpoint, polygon):
+    """The issue content is free-form Markdown, so it has to survive non-ASCII on the wire."""
+    local_api_endpoint.enqueue_response(
+        ('{"status":"OK","result":{"id":1235,"type":"DISCUSSION","status":"OPENED","author":"alice",'
+         '"html":"<p>Ограничение на <em>n</em>?</p>","creationTimeSeconds":1790000000,'
+         '"modificationTimeSeconds":1790000000,"comments":[]}}').encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    issue = polygon.problem_add_issue(PROBLEM_ID, IssueType.DISCUSSION, 'Ограничение на *n*?')
+
+    assert issue.html == '<p>Ограничение на <em>n</em>?</p>'
+    assert issue.status == IssueStatus.OPENED
+    assert issue.assignee is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.addIssue', {
+        'problemId': b'42',
+        'type': b'DISCUSSION',
+        'content': 'Ограничение на *n*?'.encode('utf-8'),
+    })
+
+
+def test_an_empty_assignee_survives_the_multipart_encoding(local_api_endpoint, polygon):
+    """
+    An empty assignee is how problem.updateIssue unassigns an issue. The unit tests only see the
+    arguments before they are encoded, so an empty field dropped by the multipart encoder, or left
+    out of apiSig, would go unnoticed there and leave the assignee in place.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":{"id":1234,"type":"BUG","status":"OPENED","author":"alice",'
+        b'"html":"<p>Test 5 is invalid</p>","creationTimeSeconds":1790000000,'
+        b'"modificationTimeSeconds":1790003600,"comments":[{"author":"bob","html":"",'
+        b'"creationTimeSeconds":1790003600}]}}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    issue = polygon.problem_update_issue(PROBLEM_ID, 1234, assignee='')
+
+    assert issue.assignee is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.updateIssue', {
+        'problemId': b'42',
+        'issueId': b'1234',
+        'assignee': b'',
     })
