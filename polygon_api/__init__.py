@@ -11,6 +11,9 @@ from .api import (
     TestDeletionFailure,
     TestGroup,
     Statement,
+    Material,
+    MaterialItem,
+    MaterialTest,
     Package,
     Solution,
     File,
@@ -49,7 +52,9 @@ from .api import (
     ProblemAccessType,
     TestDeletionFailureReason,
     IssueType,
-    IssueStatus
+    IssueStatus,
+    MaterialPublishStrategy,
+    MaterialItemType
 )
 
 __version__ = "1.4.0"

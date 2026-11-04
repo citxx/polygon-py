@@ -29,6 +29,11 @@ from polygon_api import (
     IssueStatus,
     IssueType,
     ManualTest,
+    Material,
+    MaterialItem,
+    MaterialItemType,
+    MaterialPublishStrategy,
+    MaterialTest,
     Package,
     PackageReadinessIssue,
     PackageState,
@@ -1557,6 +1562,8 @@ RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000,
                             '"pdf": {"status": "FAILED", "message": "LaTeX error"}}], '
                             '"tutorials": []}' % ('a' * 64))
 
+SOLUTIONS_ITEM = MaterialItem(MaterialItemType.SOLUTIONS, names=['main.cpp'])
+
 PIN_ROWS = [
     PinRow('problem_info', (1,), 'info', (), PROBLEM_INFO_RESULT),
     PinRow('problem_update_info', (1, ProblemInfo()), 'update_info', (ProblemInfo(),), NULL_RESULT),
@@ -1638,6 +1645,9 @@ PIN_ROWS = [
     PinRow('problem_accesses', (1,), 'accesses', (), ACCESSES_RESULT),
     PinRow('problem_set_access', (1, 'alice', ProblemAccessType.READ), 'set_access',
            ('alice', ProblemAccessType.READ), NULL_RESULT),
+    PinRow('problem_materials', (1,), 'materials', (), EMPTY_LIST_RESULT),
+    PinRow('problem_set_material', (1, 'statements', MaterialPublishStrategy.NONE, [SOLUTIONS_ITEM]),
+           'set_material', ('statements', MaterialPublishStrategy.NONE, [SOLUTIONS_ITEM]), NULL_RESULT),
     PinRow('problem_packages', (1,), 'packages', (), EMPTY_LIST_RESULT),
     PinRow('problem_package', (1, 2), 'package', (2,), NULL_RESULT),
     PinRow('problem_build_package', (1, True, False), 'build_package', (True, False), NULL_RESULT),
@@ -2641,3 +2651,226 @@ class TestPreviewTests:
         assert preview.test_index == 3
         assert calls[-1]['url'] == self.URL
         assert _sent_args(calls)[b'testset'] == b'samples'
+
+
+MATERIAL_JSON = {
+    'name': 'statements',
+    'publishStrategy': 'WITH_STATEMENT',
+    'items': [
+        {'type': 'TEST_INPUTS', 'tests': [{'testset': 'tests', 'index': 1, 'all': False, 'asInput': False},
+                                          {'testset': 'samples', 'all': True, 'asInput': False}]},
+        {'type': 'TEST_ANSWERS', 'tests': [{'testset': 'tests', 'all': False, 'asInput': True}]},
+        {'type': 'SOLUTIONS', 'names': ['main.cpp', 'slow.py']},
+    ],
+}
+
+
+class TestMaterialParsing:
+    def test_a_material_keeps_its_name_strategy_and_items(self):
+        material = Material.from_json(MATERIAL_JSON)
+        assert material.name == 'statements'
+        assert material.publish_strategy == MaterialPublishStrategy.WITH_STATEMENT
+        assert [item.type for item in material.items] == [
+            MaterialItemType.TEST_INPUTS,
+            MaterialItemType.TEST_ANSWERS,
+            MaterialItemType.SOLUTIONS,
+        ]
+
+    @pytest.mark.parametrize('strategy', list(MaterialPublishStrategy))
+    def test_every_publish_strategy_is_parsed(self, strategy):
+        material = Material.from_json(dict(MATERIAL_JSON, publishStrategy=strategy.name))
+        assert material.publish_strategy == strategy
+
+    def test_a_material_without_items_parses_into_an_empty_list(self):
+        assert Material.from_json(dict(MATERIAL_JSON, items=[])).items == []
+
+
+class TestMaterialItemParsing:
+    def test_a_test_item_has_tests_and_no_names(self):
+        item = MaterialItem.from_json(MATERIAL_JSON['items'][0])
+        assert item.type == MaterialItemType.TEST_INPUTS
+        assert [type(test) for test in item.tests] == [MaterialTest] * 2
+        assert item.names is None
+
+    def test_a_file_item_has_names_and_no_tests(self):
+        item = MaterialItem.from_json(MATERIAL_JSON['items'][2])
+        assert item.type == MaterialItemType.SOLUTIONS
+        assert item.names == ['main.cpp', 'slow.py']
+        assert item.tests is None
+
+    @pytest.mark.parametrize('item_type', list(MaterialItemType))
+    def test_every_item_type_is_parsed(self, item_type):
+        assert MaterialItem.from_json({'type': item_type.name, 'names': []}).type == item_type
+
+    def test_an_empty_legacy_list_is_kept_empty(self):
+        """The docs: a list may be empty for materials created by the web editor."""
+        assert MaterialItem.from_json({'type': 'AUX_FILES', 'names': []}).names == []
+
+
+class TestMaterialTestParsing:
+    def test_a_single_test_selection(self):
+        test = MaterialTest.from_json({'testset': 'tests', 'index': 1, 'all': False, 'asInput': False})
+        assert (test.testset, test.index, test.all, test.as_input) == ('tests', 1, False, False)
+
+    def test_an_all_tests_selection_has_no_index(self):
+        test = MaterialTest.from_json({'testset': 'samples', 'all': True, 'asInput': False})
+        assert (test.index, test.all, test.as_input) == (None, True, False)
+
+    def test_an_as_input_selection(self):
+        test = MaterialTest.from_json({'testset': 'tests', 'all': False, 'asInput': True})
+        assert (test.index, test.all, test.as_input) == (None, False, True)
+
+    def test_omitted_flags_default_to_false(self):
+        test = MaterialTest.from_json({'testset': 'tests', 'index': 3})
+        assert (test.all, test.as_input) == (False, False)
+
+    def test_a_null_index_parses_as_none(self):
+        assert MaterialTest.from_json({'testset': 'tests', 'index': None, 'all': True}).index is None
+
+
+class TestMaterialSerialization:
+    def test_a_selection_omits_the_fields_left_at_their_defaults(self):
+        assert MaterialTest('tests', index=2).to_json() == {'testset': 'tests', 'index': 2}
+        assert MaterialTest('tests', all=True).to_json() == {'testset': 'tests', 'all': True}
+        assert MaterialTest('tests', as_input=True).to_json() == {'testset': 'tests', 'asInput': True}
+
+    def test_an_item_sends_only_the_list_that_is_set(self):
+        assert MaterialItem(MaterialItemType.AUX_FILES, names=['a.txt']).to_json() == {
+            'type': 'AUX_FILES', 'names': ['a.txt'],
+        }
+        assert MaterialItem(MaterialItemType.TEST_INPUTS, tests=[MaterialTest('tests', all=True)]).to_json() == {
+            'type': 'TEST_INPUTS', 'tests': [{'testset': 'tests', 'all': True}],
+        }
+
+    def test_names_given_as_a_tuple_are_sent_as_a_list(self):
+        assert MaterialItem(MaterialItemType.SOLUTIONS, names=('a.cpp',)).to_json()['names'] == ['a.cpp']
+
+    def test_a_parsed_material_serializes_back_to_an_equivalent_selection(self):
+        """A material read through problem.materials can be passed back to problem.setMaterial."""
+        items = Material.from_json(MATERIAL_JSON).items
+        assert [item.to_json() for item in items] == [
+            {'type': 'TEST_INPUTS', 'tests': [{'testset': 'tests', 'index': 1},
+                                              {'testset': 'samples', 'all': True}]},
+            {'type': 'TEST_ANSWERS', 'tests': [{'testset': 'tests', 'asInput': True}]},
+            {'type': 'SOLUTIONS', 'names': ['main.cpp', 'slow.py']},
+        ]
+
+
+class TestMaterials:
+    """problem.materials takes no parameters of its own and returns every material of the working copy."""
+
+    def test_only_the_problem_id_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        polygon.problem_materials(1)
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.materials'
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_every_material_is_parsed_into_a_material(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(json.dumps([MATERIAL_JSON, dict(MATERIAL_JSON, name='x')])))
+        materials = polygon.problem_materials(1)
+        assert [type(material) for material in materials] == [Material] * 2
+        assert [material.name for material in materials] == ['statements', 'x']
+
+    def test_a_problem_without_materials_parses_into_an_empty_list(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        assert polygon.problem_materials(1) == []
+
+    def test_the_problem_shortcut_returns_the_same_objects(self, problem, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(json.dumps([MATERIAL_JSON])))
+        material, = problem.materials()
+        assert material.name == 'statements'
+
+
+class TestSetMaterial:
+    """
+    problem.setMaterial saves a whole material (publish strategy and items, optionally renaming it)
+    or removes one, and answers with a bare status and no result field.
+    """
+
+    URL = 'https://example.invalid/api/problem.setMaterial'
+    ITEMS = [
+        MaterialItem(MaterialItemType.TEST_INPUTS, tests=[MaterialTest('tests', index=1)]),
+        MaterialItem(MaterialItemType.TEST_ANSWERS, tests=[MaterialTest('tests', as_input=True)]),
+        MaterialItem(MaterialItemType.SOLUTIONS, names=['main.cpp']),
+    ]
+
+    def test_a_save_sends_the_strategy_and_the_items_as_compact_json(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text='{"status": "OK"}')
+        result = polygon.problem_set_material(1, 'statements', MaterialPublishStrategy.WITH_STATEMENT, self.ITEMS)
+        assert result is None
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert set(args) == {b'problemId', b'name', b'publishStrategy', b'items', b'apiKey', b'time', b'apiSig'}
+        assert args[b'name'] == b'statements'
+        assert args[b'publishStrategy'] == b'WITH_STATEMENT'
+        assert args[b'items'] == (
+            b'[{"type":"TEST_INPUTS","tests":[{"testset":"tests","index":1}]},'
+            b'{"type":"TEST_ANSWERS","tests":[{"testset":"tests","asInput":true}]},'
+            b'{"type":"SOLUTIONS","names":["main.cpp"]}]'
+        )
+
+    def test_a_rename_sends_the_original_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text='{"status": "OK"}')
+        polygon.problem_set_material(1, 'new', MaterialPublishStrategy.NONE, self.ITEMS, original_name='old')
+        args = _sent_args(calls)
+        assert args[b'name'] == b'new'
+        assert args[b'originalName'] == b'old'
+
+    def test_items_may_be_any_iterable(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text='{"status": "OK"}')
+        polygon.problem_set_material(1, 'statements', MaterialPublishStrategy.NONE, iter(self.ITEMS[2:]))
+        assert _sent_args(calls)[b'items'] == b'[{"type":"SOLUTIONS","names":["main.cpp"]}]'
+
+    def test_a_removal_sends_only_the_name_and_the_flag(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text='{"status": "OK"}')
+        polygon.problem_set_material(1, 'statements', remove=True)
+        args = _sent_args(calls)
+        assert set(args) == {b'problemId', b'name', b'remove', b'apiKey', b'time', b'apiSig'}
+        assert args[b'remove'] == b'true'
+
+    def test_remove_false_is_a_save(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text='{"status": "OK"}')
+        polygon.problem_set_material(1, 'statements', MaterialPublishStrategy.NONE, self.ITEMS, remove=False)
+        assert _sent_args(calls)[b'remove'] == b'false'
+
+    @pytest.mark.parametrize('kwargs', [
+        {'items': ITEMS},
+        {'publish_strategy': MaterialPublishStrategy.NONE},
+        {},
+    ], ids=['no-strategy', 'no-items', 'neither'])
+    def test_a_save_needs_both_the_strategy_and_the_items(self, polygon, kwargs):
+        with pytest.raises(ValueError):
+            polygon.problem_set_material(1, 'statements', **kwargs)
+
+    @pytest.mark.parametrize('kwargs', [
+        {'publish_strategy': MaterialPublishStrategy.NONE},
+        {'items': ITEMS},
+        {'original_name': 'old'},
+    ], ids=['strategy', 'items', 'original-name'])
+    def test_a_removal_takes_nothing_else(self, polygon, kwargs):
+        with pytest.raises(ValueError):
+            polygon.problem_set_material(1, 'statements', remove=True, **kwargs)
+
+    def test_a_bare_string_strategy_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_set_material(1, 'statements', 'NONE', self.ITEMS)
+
+    def test_an_item_that_is_not_a_material_item_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_set_material(1, 'statements', MaterialPublishStrategy.NONE,
+                                         [{'type': 'SOLUTIONS', 'names': ['main.cpp']}])
+
+    def test_an_item_with_a_bare_string_type_is_rejected(self, polygon):
+        with pytest.raises(ValueError):
+            polygon.problem_set_material(1, 'statements', MaterialPublishStrategy.NONE,
+                                         [MaterialItem('SOLUTIONS', names=['main.cpp'])])
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text='{"status": "OK"}')
+        problem.set_material('new', MaterialPublishStrategy.WITH_TUTORIAL, self.ITEMS[2:], original_name='old')
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert args[b'name'] == b'new'
+        assert args[b'originalName'] == b'old'
+        assert args[b'publishStrategy'] == b'WITH_TUTORIAL'
+        assert args[b'items'] == b'[{"type":"SOLUTIONS","names":["main.cpp"]}]'

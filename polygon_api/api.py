@@ -90,6 +90,8 @@ class Polygon:
     _PROBLEM_SAVE_GENERAL_DESCRIPTION = 'problem.saveGeneralDescription'
     _PROBLEM_VIEW_GENERAL_TUTORIAL = 'problem.viewGeneralTutorial'
     _PROBLEM_SAVE_GENERAL_TUTORIAL = 'problem.saveGeneralTutorial'
+    _PROBLEM_MATERIALS = 'problem.materials'
+    _PROBLEM_SET_MATERIAL = 'problem.setMaterial'
     _PROBLEM_PACKAGES = 'problem.packages'
     _PROBLEM_PACKAGE = 'problem.package'
     _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
@@ -954,6 +956,60 @@ class Polygon:
         )
         return response.result
 
+    def problem_materials(self, problem_id, pin=None):
+        """
+        Returns the publishable materials of the working copy, sorted by name. Stored legacy
+        materials come back as they are, so one may hold an empty item or a reference that has
+        become invalid
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_MATERIALS,
+            args={'problemId': problem_id, 'pin': pin},
+        )
+        return [Material.from_json(js) for js in response.result]
+
+    def problem_set_material(self, problem_id, name, publish_strategy=None, items=None, original_name=None,
+                             remove=None, pin=None):
+        """
+        Creates or fully replaces the material called name, renaming original_name to name if it is
+        given, or removes the material with remove=True. Saving needs publish_strategy and a list of
+        MaterialItem objects; removing takes neither. Changes the working copy only:
+        problem.commitChanges creates a revision
+        """
+        if remove:
+            if publish_strategy is not None or items is not None or original_name is not None:
+                raise ValueError("publish_strategy, items and original_name can't be specified with remove")
+        else:
+            if publish_strategy is None or items is None:
+                raise ValueError("Both publish_strategy and items must be specified to save a material")
+        if publish_strategy is not None and not isinstance(publish_strategy, MaterialPublishStrategy):
+            raise ValueError(
+                "Expected MaterialPublishStrategy instance for publish_strategy argument, but %s found"
+                % type(publish_strategy))
+        if items is not None:
+            items = list(items)
+            for item in items:
+                if not isinstance(item, MaterialItem):
+                    raise ValueError("Expected MaterialItem instances in items argument, but %s found" % type(item))
+                if not isinstance(item.type, MaterialItemType):
+                    raise ValueError(
+                        "Expected MaterialItemType instance for MaterialItem.type, but %s found" % type(item.type))
+            # Compact separators: the docs cap items at 262144 characters.
+            items = json.dumps([item.to_json() for item in items], separators=(',', ':'))
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SET_MATERIAL,
+            args={
+                'problemId': problem_id,
+                'name': name,
+                'originalName': original_name,
+                'publishStrategy': publish_strategy,
+                'items': items,
+                'remove': remove,
+                'pin': pin,
+            },
+        )
+        return response.result
+
     def problem_packages(self, problem_id, pin=None):
         """
         Returns list of packages
@@ -1391,6 +1447,13 @@ class Problem:
 
     def save_script(self, testset, source, pin=None):
         return self._polygon.problem_save_script(self.id, testset, source, pin=self._resolve_pin(pin))
+
+    def materials(self, pin=None):
+        return self._polygon.problem_materials(self.id, pin=self._resolve_pin(pin))
+
+    def set_material(self, name, publish_strategy=None, items=None, original_name=None, remove=None, pin=None):
+        return self._polygon.problem_set_material(self.id, name, publish_strategy, items, original_name, remove,
+                                                  pin=self._resolve_pin(pin))
 
     def packages(self, pin=None):
         return self._polygon.problem_packages(self.id, pin=self._resolve_pin(pin))
@@ -1840,6 +1903,100 @@ class RenderStatements:
         self.rendering_time_seconds = rendering_time_seconds
         self.statements = statements
         self.tutorials = tutorials
+
+
+class Material:
+    """
+    Object: representing one publishable material of a Polygon problem
+    """
+    _NAME = "name"
+    _PUBLISH_STRATEGY = "publishStrategy"
+    _ITEMS = "items"
+
+    @classmethod
+    def from_json(cls, material_json):
+        return cls(
+            name=material_json[Material._NAME],
+            publish_strategy=MaterialPublishStrategy[material_json[Material._PUBLISH_STRATEGY]],
+            items=[MaterialItem.from_json(js) for js in material_json[Material._ITEMS]],
+        )
+
+    def __init__(self, name, publish_strategy, items):
+        self.name = name
+        self.publish_strategy = publish_strategy
+        self.items = items
+
+
+class MaterialItem:
+    """
+    Object: representing one group of tests or files of a material. tests is set for TEST_INPUTS
+    and TEST_ANSWERS, names (of files or solutions) for the other types
+    """
+    _TYPE = "type"
+    _TESTS = "tests"
+    _NAMES = "names"
+
+    @classmethod
+    def from_json(cls, item_json):
+        tests = item_json.get(MaterialItem._TESTS, None)
+        return cls(
+            type=MaterialItemType[item_json[MaterialItem._TYPE]],
+            tests=None if tests is None else [MaterialTest.from_json(js) for js in tests],
+            names=item_json.get(MaterialItem._NAMES, None),
+        )
+
+    def __init__(self, type, tests=None, names=None):
+        self.type = type
+        self.tests = tests
+        self.names = names
+
+    def to_json(self):
+        """The item as problem.setMaterial takes it, with only the lists that are set"""
+        item_json = {MaterialItem._TYPE: str(self.type)}
+        if self.tests is not None:
+            item_json[MaterialItem._TESTS] = [test.to_json() for test in self.tests]
+        if self.names is not None:
+            item_json[MaterialItem._NAMES] = list(self.names)
+        return item_json
+
+
+class MaterialTest:
+    """
+    Object: representing one test selection of a material item: a single test by index, all
+    tests of the testset, or (in TEST_ANSWERS) the selected input files reused as answers
+    """
+    _TESTSET = "testset"
+    _INDEX = "index"
+    _ALL = "all"
+    _AS_INPUT = "asInput"
+
+    @classmethod
+    def from_json(cls, test_json):
+        return cls(
+            testset=test_json[MaterialTest._TESTSET],
+            index=test_json.get(MaterialTest._INDEX, None),
+            # problem.materials returns stored legacy materials unvalidated, and an omitted flag
+            # means false, as it does on input to problem.setMaterial.
+            all=test_json.get(MaterialTest._ALL, False),
+            as_input=test_json.get(MaterialTest._AS_INPUT, False),
+        )
+
+    def __init__(self, testset, index=None, all=False, as_input=False):
+        self.testset = testset
+        self.index = index
+        self.all = all
+        self.as_input = as_input
+
+    def to_json(self):
+        """The selection as problem.setMaterial takes it, without the fields left at their defaults"""
+        test_json = {MaterialTest._TESTSET: self.testset}
+        if self.index is not None:
+            test_json[MaterialTest._INDEX] = self.index
+        if self.all:
+            test_json[MaterialTest._ALL] = True
+        if self.as_input:
+            test_json[MaterialTest._AS_INPUT] = True
+        return test_json
 
 
 class Package:
@@ -2605,6 +2762,27 @@ class IssueStatus(Enum):
     OPENED = 0
     REOPENED = 1
     CLOSED = 2
+
+    def __str__(self):
+        return self.name
+
+
+class MaterialPublishStrategy(Enum):
+    NONE = 0
+    WITH_TUTORIAL = 1
+    WITH_STATEMENT = 2
+
+    def __str__(self):
+        return self.name
+
+
+class MaterialItemType(Enum):
+    TEST_INPUTS = 0
+    TEST_ANSWERS = 1
+    RESOURCE_FILES = 2
+    SOURCE_FILES = 3
+    AUX_FILES = 4
+    SOLUTIONS = 5
 
     def __str__(self):
         return self.name
