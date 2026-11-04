@@ -1216,7 +1216,6 @@ class ManualTest(Test):
 
     @classmethod
     def from_json(cls, polygon, problem_id, testset, test_json, pin=None):
-        verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
         input_base64 = test_json.get(Test._INPUT_BASE64, None)
         return cls(
             polygon=polygon,
@@ -1231,7 +1230,7 @@ class ManualTest(Test):
             use_in_statements=test_json[Test._USE_IN_STATEMENTS],
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
             output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
-            verify_input_output_for_statements=None if verify is None else (verify == 'true'),
+            verify_input_output_for_statements=test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None),
             pin=pin,
         )
 
@@ -1254,7 +1253,6 @@ class ManualTest(Test):
 class GeneratedTest(Test):
     @classmethod
     def from_json(cls, polygon, problem_id, testset, test_json, pin=None):
-        verify = test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None)
         return cls(
             polygon=polygon,
             problem_id=problem_id,
@@ -1267,7 +1265,7 @@ class GeneratedTest(Test):
             script_line=test_json[Test._SCRIPT_LINE],
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
             output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
-            verify_input_output_for_statements=None if verify is None else (verify == 'true'),
+            verify_input_output_for_statements=test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None),
             pin=pin,
         )
 
