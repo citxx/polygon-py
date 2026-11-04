@@ -2,6 +2,7 @@ from .api import (
     Polygon,
     Problem,
     ProblemInfo,
+    CommitResult,
     Test,
     ManualTest,
     GeneratedTest,
@@ -42,4 +43,4 @@ from .api import (
     ProblemAccessType
 )
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
