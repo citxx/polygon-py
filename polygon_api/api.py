@@ -80,6 +80,7 @@ class Polygon:
     _PROBLEM_SET_TEST_GROUP = 'problem.setTestGroup'
     _PROBLEM_ENABLE_GROUPS = 'problem.enableGroups'
     _PROBLEM_ENABLE_POINTS = 'problem.enablePoints'
+    _PROBLEM_ENABLE_TREAT_POINTS_FROM_CHECKER_AS_PERCENT = 'problem.enableTreatPointsFromCheckerAsPercent'
     _PROBLEM_VIEW_TEST_GROUP = 'problem.viewTestGroup'
     _PROBLEM_SAVE_TEST_GROUP = 'problem.saveTestGroup'
     _PROBLEM_VIEW_TAGS = 'problem.viewTags'
@@ -420,6 +421,21 @@ class Polygon:
         """
         response = self._request_ok_or_raise(
             self._PROBLEM_ENABLE_POINTS,
+            args={
+                'problemId': problem_id,
+                'enable': enable,
+                'pin': pin,
+            },
+        )
+        return response.result
+
+    def problem_enable_treat_points_from_checker_as_percent(self, problem_id, enable, pin=None):
+        """
+        Enables or disables treating the points returned by the checker as percents. Enabling it
+        fails while test points are disabled for the problem
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_ENABLE_TREAT_POINTS_FROM_CHECKER_AS_PERCENT,
             args={
                 'problemId': problem_id,
                 'enable': enable,
@@ -1224,6 +1240,10 @@ class Problem:
 
     def enable_points(self, enable, pin=None):
         return self._polygon.problem_enable_points(self.id, enable, pin=self._resolve_pin(pin))
+
+    def enable_treat_points_from_checker_as_percent(self, enable, pin=None):
+        return self._polygon.problem_enable_treat_points_from_checker_as_percent(self.id, enable,
+                                                                                 pin=self._resolve_pin(pin))
 
     def save_test(self, testset, test_index, test_input, test_group=None, test_points=None, test_description=None,
                   test_use_in_statements=None, test_input_for_statements=None, test_output_for_statements=None,

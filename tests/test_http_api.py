@@ -612,3 +612,38 @@ def test_an_empty_assignee_survives_the_multipart_encoding(local_api_endpoint, p
         'issueId': b'1234',
         'assignee': b'',
     })
+
+
+def test_enable_treat_points_from_checker_as_percent_sends_the_flag(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":null}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_enable_treat_points_from_checker_as_percent(PROBLEM_ID, False)
+
+    assert result is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.enableTreatPointsFromCheckerAsPercent', {
+        'problemId': b'42',
+        'enable': b'false',
+    })
+
+
+def test_enable_treat_points_from_checker_as_percent_raises_on_the_http_400(local_api_endpoint, polygon):
+    """The docs: enabling it while test points are disabled for the problem returns FAILED."""
+    local_api_endpoint.enqueue_response(
+        b'{"status":"FAILED","comment":"Test points are disabled"}',
+        status=400,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    with pytest.raises(PolygonRequestFailedException) as excinfo:
+        polygon.problem_enable_treat_points_from_checker_as_percent(PROBLEM_ID, True)
+
+    assert excinfo.value.comment == 'Test points are disabled'
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.enableTreatPointsFromCheckerAsPercent', {
+        'problemId': b'42',
+        'enable': b'true',
+    })
