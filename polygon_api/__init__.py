@@ -6,6 +6,7 @@ from .api import (
     Test,
     ManualTest,
     GeneratedTest,
+    TestPreview,
     DeleteTestsResult,
     TestDeletionFailure,
     TestGroup,

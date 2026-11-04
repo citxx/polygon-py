@@ -64,6 +64,7 @@ class Polygon:
     _PROBLEM_SCRIPT = 'problem.script'
     _PROBLEM_CLEAR_SCRIPT = 'problem.clearScript'
     _PROBLEM_TESTS = 'problem.tests'
+    _PROBLEM_PREVIEW_TESTS = 'problem.previewTests'
     _PROBLEM_TEST_INPUT = 'problem.testInput'
     _PROBLEM_TEST_ANSWER = 'problem.testAnswer'
     _PROBLEM_SET_VALIDATOR = 'problem.setValidator'
@@ -552,6 +553,21 @@ class Polygon:
             }
         )
         return [Test.from_json(self, problem_id, testset, js, pin) for js in response.result]
+
+    def problem_preview_tests(self, problem_id, testset, pin=None):
+        """
+        Returns the previews of the tests of a testset. A missing or stale preview may start being
+        generated and come back without input and answer: repeat the request later to get them
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_PREVIEW_TESTS,
+            args={
+                'problemId': problem_id,
+                'testset': testset,
+                'pin': pin,
+            }
+        )
+        return [TestPreview.from_json(js) for js in response.result]
 
     def problem_script(self, problem_id, testset, pin=None):
         """
@@ -1264,6 +1280,9 @@ class Problem:
     def tests(self, testset, no_inputs=None, pin=None):
         return self._polygon.problem_tests(self.id, testset, no_inputs, pin=self._resolve_pin(pin))
 
+    def preview_tests(self, testset, pin=None):
+        return self._polygon.problem_preview_tests(self.id, testset, pin=self._resolve_pin(pin))
+
     def save_test_group(self, testset, group, points_policy=None, feedback_policy=None, dependencies=None, pin=None):
         return self._polygon.problem_save_test_group(self.id, testset, group,
                                                      points_policy, feedback_policy, dependencies,
@@ -1567,6 +1586,65 @@ class GeneratedTest(Test):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
                          input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
         self.script_line = script_line
+
+
+class TestPreview:
+    """
+    Object: representing the preview of one test, as returned by problem.previewTests
+    """
+    _ID = "id"
+    _SESSION = "session"
+    _CREATION_TIME = "creationTime"
+    _UPDATE_TIME = "updateTime"
+    _PROBLEM_ID = "problemId"
+    _TESTSET = "testset"
+    _TEST_INDEX = "testIndex"
+    _DESCRIPTION = "description"
+    _USE_IN_STATEMENTS = "useInStatements"
+    _INPUT = "input"
+    _INPUT_SHA1 = "inputSha1"
+    _ANSWER = "answer"
+    _CHANGE_AFTER_LAST_GENERATE = "changeAfterLastGenerate"
+    _TEST_OVERVIEW_LOG = "testOverviewLog"
+
+    @classmethod
+    def from_json(cls, preview_json):
+        return cls(
+            preview_id=preview_json.get(TestPreview._ID, None),
+            session=preview_json[TestPreview._SESSION],
+            # Kept as the strings Polygon sends: the docs call them legacy Gson date strings, whose
+            # format is not pinned down, so parsing them could fail on a server-side change.
+            creation_time=preview_json.get(TestPreview._CREATION_TIME, None),
+            update_time=preview_json.get(TestPreview._UPDATE_TIME, None),
+            problem_id=preview_json[TestPreview._PROBLEM_ID],
+            testset=preview_json[TestPreview._TESTSET],
+            test_index=preview_json[TestPreview._TEST_INDEX],
+            description=preview_json.get(TestPreview._DESCRIPTION, None),
+            use_in_statements=preview_json[TestPreview._USE_IN_STATEMENTS],
+            input=preview_json.get(TestPreview._INPUT, None),
+            input_sha1=preview_json.get(TestPreview._INPUT_SHA1, None),
+            answer=preview_json.get(TestPreview._ANSWER, None),
+            change_after_last_generate=preview_json[TestPreview._CHANGE_AFTER_LAST_GENERATE],
+            test_overview_log=preview_json.get(TestPreview._TEST_OVERVIEW_LOG, None),
+        )
+
+    def __init__(self, session, problem_id, testset, test_index, use_in_statements, change_after_last_generate,
+                 preview_id=None, creation_time=None, update_time=None, description=None, input=None,
+                 input_sha1=None, answer=None, test_overview_log=None):
+        self.id = preview_id
+        self.session = session
+        self.creation_time = creation_time
+        self.update_time = update_time
+        self.problem_id = problem_id
+        self.testset = testset
+        self.test_index = test_index
+        self.description = description
+        self.use_in_statements = use_in_statements
+        self.input = input
+        self.input_sha1 = input_sha1
+        self.answer = answer
+        self.change_after_last_generate = change_after_last_generate
+        self.test_overview_log = test_overview_log
 
 
 class DeleteTestsResult:
