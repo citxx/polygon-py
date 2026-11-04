@@ -441,3 +441,33 @@ def test_delete_solution_raises_on_the_http_400_for_a_missing_solution(local_api
         'problemId': b'42',
         'name': b'wa.cpp',
     })
+
+
+def test_delete_statement_sends_the_language(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_delete_statement(PROBLEM_ID, 'russian')
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteStatement', {
+        'problemId': b'42',
+        'lang': b'russian',
+    })
+
+
+def test_delete_statement_resource_sends_the_name(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_delete_statement_resource(PROBLEM_ID, 'picture.png')
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteStatementResource', {
+        'problemId': b'42',
+        'name': b'picture.png',
+    })

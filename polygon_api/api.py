@@ -40,9 +40,11 @@ class Polygon:
     _PROBLEM_STATEMENTS = 'problem.statements'
     _PROBLEM_RENDER_STATEMENTS = 'problem.renderStatements'
     _PROBLEM_SAVE_STATEMENT = 'problem.saveStatement'
+    _PROBLEM_DELETE_STATEMENT = 'problem.deleteStatement'
     _PROBLEM_STATEMENT_RESOURCES = 'problem.statementResources'
     _PROBLEM_VIEW_STATEMENT_RESOURCE = 'problem.viewStatementResource'
     _PROBLEM_SAVE_STATEMENT_RESOURCE = 'problem.saveStatementResource'
+    _PROBLEM_DELETE_STATEMENT_RESOURCE = 'problem.deleteStatementResource'
     _PROBLEMS_LIST = 'problems.list'
     _PROBLEM_CREATE = 'problem.create'
     _PROBLEM_CHECKER = 'problem.checker'
@@ -326,6 +328,21 @@ class Polygon:
         )
         return response.result
 
+    def problem_delete_statement(self, problem_id, lang, pin=None):
+        """
+        Deletes the statement in the given language, as problem.statements names it. The statement
+        resources are kept
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_STATEMENT,
+            args={
+                'problemId': problem_id,
+                'lang': lang,
+                'pin': pin,
+            },
+        )
+        return response.result
+
     def problem_statement_resources(self, problem_id, pin=None):
         """
         Returns a list of File objects, one per statement resource
@@ -362,6 +379,17 @@ class Polygon:
                 'name': name,
                 'file': file,
                 'checkExisting': check_existing,
+                'pin': pin,
+            },
+        )
+        return response.result
+
+    def problem_delete_statement_resource(self, problem_id, name, pin=None):
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_STATEMENT_RESOURCE,
+            args={
+                'problemId': problem_id,
+                'name': name,
                 'pin': pin,
             },
         )
@@ -1054,6 +1082,9 @@ class Problem:
     def save_statement(self, lang, problem_statement, pin=None):
         return self._polygon.problem_save_statement(self.id, lang, problem_statement, pin=self._resolve_pin(pin))
 
+    def delete_statement(self, lang, pin=None):
+        return self._polygon.problem_delete_statement(self.id, lang, pin=self._resolve_pin(pin))
+
     def statement_resources(self, pin=None):
         return self._polygon.problem_statement_resources(self.id, pin=self._resolve_pin(pin))
 
@@ -1063,6 +1094,9 @@ class Problem:
     def save_statement_resource(self, name, file, check_existing=None, pin=None):
         return self._polygon.problem_save_statement_resource(self.id, name, file, check_existing,
                                                              pin=self._resolve_pin(pin))
+
+    def delete_statement_resource(self, name, pin=None):
+        return self._polygon.problem_delete_statement_resource(self.id, name, pin=self._resolve_pin(pin))
 
     def enable_groups(self, testset, enable, pin=None):
         return self._polygon.problem_enable_groups(self.id, testset, enable, pin=self._resolve_pin(pin))
