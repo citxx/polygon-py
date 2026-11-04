@@ -59,6 +59,13 @@ from polygon_api import (
     SourceAiTip,
     Statement,
     StatementAiTip,
+    Stress,
+    StressCountertest,
+    StressRun,
+    StressRunStatus,
+    StressRunVerdict,
+    StressSolutionReport,
+    StressSolutionVerdict,
     ValidatorTest,
     ValidatorTestRunVerdict,
     ValidatorTestVerdict,
@@ -1571,6 +1578,9 @@ RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000,
 INVOCATION_RESULTS_RESULT = ('{"invocation": {"id": 501, "description": "", "testset": "tests", '
                              '"status": "PENDING", "creationTimeSeconds": 1790000000, "violateTag": false, '
                              '"solutions": [], "tests": []}, "solutionTags": [], "runs": []}')
+STRESS_RESULT = ('{"index": 1, "scriptPattern": "gen [1..10]", "solutionNames": ["main.cpp", "wa.cpp"], '
+                 '"timeLimit": 2000, "memoryLimit": 256, "totalTimeLimit": 60000, "ignoreValidators": false, '
+                 '"description": ""}')
 SOLUTIONS_ITEM = MaterialItem(MaterialItemType.SOLUTIONS, names=['main.cpp'])
 
 PIN_ROWS = [
@@ -1662,6 +1672,9 @@ PIN_ROWS = [
     PinRow('problem_build_package', (1, True, False), 'build_package', (True, False), NULL_RESULT),
     PinRow('problem_invocations', (1,), 'invocations', (), EMPTY_LIST_RESULT),
     PinRow('problem_invocation', (1, 501), 'invocation', (501,), INVOCATION_RESULTS_RESULT),
+    PinRow('problem_stresses', (1,), 'stresses', (), EMPTY_LIST_RESULT),
+    PinRow('problem_save_stress', (1, 1), 'save_stress', (1,), STRESS_RESULT),
+    PinRow('problem_delete_stress', (1, 1), 'delete_stress', (1,), NULL_RESULT),
 ]
 
 POLYGON_PIN_ROWS = [row for row in PIN_ROWS if row.polygon_method is not None]
@@ -3066,3 +3079,265 @@ class TestInvocation:
         assert results.invocation.id == 501
         assert calls[-1]['url'] == self.URL
         assert _sent_args(calls)[b'invocationId'] == b'501'
+
+
+REPORT_JSON = {
+    'solutionName': 'wa.cpp',
+    'verdict': 'WRONG_ANSWER',
+    'consumedTime': 15,
+    'consumedMemory': 2097152,
+    'output': '12',
+    'outputTruncated': False,
+    'answer': '13',
+    'answerTruncated': False,
+    'comment': 'wrong answer expected 13, found 12',
+}
+
+COUNTERTEST_JSON = {
+    'input': '57\n3 1 4 1 5 ...',
+    'inputTruncated': True,
+    'scriptLine': 'gen 10 57 abacaba 2f8a91',
+    'reports': [REPORT_JSON],
+}
+
+FINISHED_RUN_JSON = {
+    'status': 'FINISHED',
+    'verdict': 'OK',
+    'judgedTestCount': 412,
+    'maxConsumedTime': 31,
+    'maxConsumedMemory': 4194304,
+    'countertest': COUNTERTEST_JSON,
+}
+
+STRESS_JSON = {
+    'index': 1,
+    'scriptPattern': 'gen 10 [5..100] abacaba',
+    'solutionNames': ['main.cpp', 'wa.cpp'],
+    'timeLimit': 2000,
+    'memoryLimit': 256,
+    'totalTimeLimit': 60000,
+    'testset': 'tests',
+    'group': 'small',
+    'ignoreValidators': False,
+    'description': 'small random tests',
+    'run': FINISHED_RUN_JSON,
+}
+
+
+class TestStressParsing:
+    def test_a_stress_keeps_every_field(self):
+        stress = Stress.from_json(STRESS_JSON)
+        assert stress.index == 1
+        assert stress.script_pattern == 'gen 10 [5..100] abacaba'
+        assert stress.solution_names == ['main.cpp', 'wa.cpp']
+        assert stress.time_limit == 2000
+        assert stress.memory_limit == 256
+        assert stress.total_time_limit == 60000
+        assert stress.testset == 'tests'
+        assert stress.group == 'small'
+        assert stress.ignore_validators is False
+        assert stress.description == 'small random tests'
+        assert isinstance(stress.run, StressRun)
+
+    def test_a_stress_without_a_context_or_a_run(self):
+        """The docs: testset and group are absent if not set, run if the stress has not been run."""
+        stress = Stress.from_json(json.loads(STRESS_RESULT))
+        assert stress.testset is None
+        assert stress.group is None
+        assert stress.description == ''
+        assert stress.run is None
+
+
+class TestStressRunParsing:
+    def test_a_finished_run_keeps_its_statistics_and_countertest(self):
+        run = StressRun.from_json(FINISHED_RUN_JSON)
+        assert run.status == StressRunStatus.FINISHED
+        assert run.verdict == StressRunVerdict.OK
+        assert run.judged_test_count == 412
+        assert run.max_consumed_time == 31
+        assert run.max_consumed_memory == 4194304
+        assert run.comment is None
+        assert isinstance(run.countertest, StressCountertest)
+
+    def test_a_running_run_has_only_its_status(self):
+        run = StressRun.from_json({'status': 'RUNNING'})
+        assert run.status == StressRunStatus.RUNNING
+        assert run.verdict is None
+        assert run.comment is None
+        assert run.judged_test_count is None
+        assert run.max_consumed_time is None
+        assert run.max_consumed_memory is None
+        assert run.countertest is None
+
+    def test_a_failed_run_keeps_its_comment(self):
+        run = StressRun.from_json({'status': 'FINISHED', 'verdict': 'FAILED', 'comment': 'Validator failed',
+                                   'judgedTestCount': 0, 'maxConsumedTime': 0, 'maxConsumedMemory': 0})
+        assert run.verdict == StressRunVerdict.FAILED
+        assert run.comment == 'Validator failed'
+        assert run.countertest is None
+
+    @pytest.mark.parametrize('status', list(StressRunStatus))
+    def test_every_status_is_parsed(self, status):
+        assert StressRun.from_json({'status': status.name}).status == status
+
+    @pytest.mark.parametrize('verdict', list(StressRunVerdict))
+    def test_every_verdict_is_parsed(self, verdict):
+        assert StressRun.from_json(dict(FINISHED_RUN_JSON, verdict=verdict.name)).verdict == verdict
+
+
+class TestStressCountertestParsing:
+    def test_a_countertest_keeps_its_script_line_input_and_reports(self):
+        countertest = StressCountertest.from_json(COUNTERTEST_JSON)
+        assert countertest.script_line == 'gen 10 57 abacaba 2f8a91'
+        assert countertest.input == '57\n3 1 4 1 5 ...'
+        assert countertest.input_truncated is True
+        assert [type(report) for report in countertest.reports] == [StressSolutionReport]
+
+    def test_a_countertest_rejected_before_its_input_was_received(self):
+        """The docs: input is absent when, for example, a validator rejected the generated test."""
+        countertest = StressCountertest.from_json({'scriptLine': 'gen 1 2', 'inputTruncated': False, 'reports': []})
+        assert countertest.input is None
+        assert countertest.reports == []
+
+
+class TestStressSolutionReportParsing:
+    def test_a_report_keeps_every_field(self):
+        report = StressSolutionReport.from_json(REPORT_JSON)
+        assert report.solution_name == 'wa.cpp'
+        assert report.verdict == StressSolutionVerdict.WRONG_ANSWER
+        assert report.consumed_time == 15
+        assert report.consumed_memory == 2097152
+        assert report.output == '12'
+        assert report.output_truncated is False
+        assert report.answer == '13'
+        assert report.answer_truncated is False
+        assert report.comment == 'wrong answer expected 13, found 12'
+
+    def test_absent_output_answer_and_comment_read_as_none(self):
+        report = StressSolutionReport.from_json({
+            'solutionName': 'slow.cpp', 'verdict': 'TIME_LIMIT_EXCEEDED', 'consumedTime': 2000,
+            'consumedMemory': 1048576, 'outputTruncated': False, 'answerTruncated': False,
+        })
+        assert report.output is None
+        assert report.answer is None
+        assert report.comment is None
+
+    @pytest.mark.parametrize('verdict', list(StressSolutionVerdict))
+    def test_every_verdict_is_parsed(self, verdict):
+        assert StressSolutionReport.from_json(dict(REPORT_JSON, verdict=verdict.name)).verdict == verdict
+
+
+class TestStresses:
+    """problem.stresses returns a list of stresses, also when it is asked for a single one."""
+
+    URL = 'https://example.invalid/api/problem.stresses'
+
+    def test_only_the_problem_id_is_sent_without_an_index(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        polygon.problem_stresses(1)
+        assert calls[-1]['url'] == self.URL
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_a_single_stress_comes_back_in_a_list(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body('[%s]' % STRESS_RESULT))
+        stresses = polygon.problem_stresses(1, stress_index=1)
+        assert _sent_args(calls)[b'stressIndex'] == b'1'
+        assert [type(stress) for stress in stresses] == [Stress]
+
+    def test_a_problem_without_stresses_parses_into_an_empty_list(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        assert polygon.problem_stresses(1) == []
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body('[%s]' % STRESS_RESULT))
+        stress, = problem.stresses(stress_index=1)
+        assert stress.index == 1
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'stressIndex'] == b'1'
+
+
+class TestSaveStress:
+    """
+    problem.saveStress creates a stress without an index and updates the stress with one, in which
+    case a parameter that is not passed keeps its value and is not sent.
+    """
+
+    URL = 'https://example.invalid/api/problem.saveStress'
+
+    def test_a_creation_sends_every_argument_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(STRESS_RESULT))
+        polygon.problem_save_stress(1, script_pattern='gen [1..10] | gen 5', solution_names=['wa.cpp', 'tl.cpp'],
+                                    time_limit=1000, memory_limit=64, total_time_limit=15000, testset='tests',
+                                    group='small', ignore_validators=True, description='small tests')
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert b'stressIndex' not in args
+        assert args[b'scriptPattern'] == b'gen [1..10] | gen 5'
+        assert args[b'solutionNames'] == b'wa.cpp,tl.cpp'
+        assert args[b'timeLimit'] == b'1000'
+        assert args[b'memoryLimit'] == b'64'
+        assert args[b'totalTimeLimit'] == b'15000'
+        assert args[b'testset'] == b'tests'
+        assert args[b'group'] == b'small'
+        assert args[b'ignoreValidators'] == b'true'
+        assert args[b'description'] == b'small tests'
+
+    def test_solution_names_may_be_a_comma_separated_string(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(STRESS_RESULT))
+        polygon.problem_save_stress(1, script_pattern='gen [1..10]', solution_names='wa.cpp,tl.cpp')
+        assert _sent_args(calls)[b'solutionNames'] == b'wa.cpp,tl.cpp'
+
+    def test_an_update_sends_only_what_it_changes(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(STRESS_RESULT))
+        polygon.problem_save_stress(1, stress_index=3, total_time_limit=120000)
+        assert set(_sent_args(calls)) == {b'problemId', b'stressIndex', b'totalTimeLimit',
+                                          b'apiKey', b'time', b'apiSig'}
+
+    def test_empty_values_are_sent_to_clear_them(self, polygon, monkeypatch):
+        """The docs: an empty testset, group or description clears it."""
+        calls = _install_fake_post(monkeypatch, text=_ok_body(STRESS_RESULT))
+        polygon.problem_save_stress(1, stress_index=3, testset='', group='', description='')
+        args = _sent_args(calls)
+        assert (args[b'testset'], args[b'group'], args[b'description']) == (b'', b'', b'')
+
+    def test_the_saved_stress_is_returned(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(STRESS_RESULT))
+        stress = polygon.problem_save_stress(1, script_pattern='gen [1..10]', solution_names=['wa.cpp'])
+        assert isinstance(stress, Stress)
+        assert stress.run is None
+
+    @pytest.mark.parametrize('kwargs', [
+        {'script_pattern': 'gen [1..10]'},
+        {'solution_names': ['wa.cpp']},
+        {},
+    ], ids=['no-solutions', 'no-pattern', 'neither'])
+    def test_a_creation_needs_the_pattern_and_the_solutions(self, polygon, kwargs):
+        with pytest.raises(ValueError):
+            polygon.problem_save_stress(1, **kwargs)
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(STRESS_RESULT))
+        stress = problem.save_stress(script_pattern='gen [1..10]', solution_names=['wa.cpp'], ignore_validators=False)
+        assert stress.index == 1
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert args[b'scriptPattern'] == b'gen [1..10]'
+        assert args[b'solutionNames'] == b'wa.cpp'
+        assert args[b'ignoreValidators'] == b'false'
+
+
+class TestDeleteStress:
+    URL = 'https://example.invalid/api/problem.deleteStress'
+
+    def test_the_index_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_delete_stress(1, 2)
+        assert calls[-1]['url'] == self.URL
+        assert set(_sent_args(calls)) == {b'problemId', b'stressIndex', b'apiKey', b'time', b'apiSig'}
+        assert _sent_args(calls)[b'stressIndex'] == b'2'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.delete_stress(2)
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'stressIndex'] == b'2'
