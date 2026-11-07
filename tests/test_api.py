@@ -1584,6 +1584,8 @@ PIN_ROWS = [
            ('olymp.sty',), NULL_RESULT),
     PinRow('problem_enable_groups', (1, 'tests', True), 'enable_groups', ('tests', True), NULL_RESULT),
     PinRow('problem_enable_points', (1, True), 'enable_points', (True,), NULL_RESULT),
+    PinRow('problem_enable_treat_points_from_checker_as_percent', (1, True),
+           'enable_treat_points_from_checker_as_percent', (True,), NULL_RESULT),
     PinRow('problem_save_test', (1, 'tests', 1, '1 2'), 'save_test', ('tests', 1, '1 2'), NULL_RESULT),
     PinRow('problem_set_test_group', (1, 'tests', 'first', 1), 'set_test_group',
            ('tests', 'first', 1), NULL_RESULT),
@@ -2519,3 +2521,30 @@ class TestUpdateIssue:
         assert args[b'status'] == b'REOPENED'
         assert args[b'type'] == b'BUG'
         assert args[b'assignee'] == b''
+
+
+class TestEnableTreatPointsFromCheckerAsPercent:
+    """
+    problem.enableTreatPointsFromCheckerAsPercent is problem.enablePoints for the checker points:
+    a single boolean, sent as the lowercase true or false the API expects.
+    """
+
+    URL = 'https://example.invalid/api/problem.enableTreatPointsFromCheckerAsPercent'
+
+    @pytest.mark.parametrize('enable, sent', [(True, b'true'), (False, b'false')])
+    def test_enable_is_sent_as_a_lowercase_boolean(self, polygon, monkeypatch, enable, sent):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_enable_treat_points_from_checker_as_percent(1, enable)
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'enable'] == sent
+
+    def test_nothing_beyond_enable_is_sent(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_enable_treat_points_from_checker_as_percent(1, True)
+        assert set(_sent_args(calls)) == {b'problemId', b'enable', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.enable_treat_points_from_checker_as_percent(False)
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'enable'] == b'false'
