@@ -1,4 +1,5 @@
 import hashlib
+import json
 
 import pytest
 
@@ -9,6 +10,10 @@ from polygon_api import (
     FileType,
     IssueStatus,
     IssueType,
+    MaterialItem,
+    MaterialItemType,
+    MaterialPublishStrategy,
+    MaterialTest,
     Polygon,
     PolygonRequestFailedException,
     ProblemAccessType,
@@ -679,4 +684,71 @@ def test_test_previews_are_parsed_from_a_full_api_response(local_api_endpoint, p
     _assert_signed_request(request, 'problem.previewTests', {
         'problemId': b'42',
         'testset': b'tests',
+    })
+
+
+def test_materials_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        ('{"status":"OK","result":[{"name":"разбор","publishStrategy":"WITH_TUTORIAL","items":['
+         '{"type":"TEST_INPUTS","tests":[{"testset":"tests","index":1,"all":false,"asInput":false}]},'
+         '{"type":"TEST_ANSWERS","tests":[{"testset":"tests","all":false,"asInput":true}]},'
+         '{"type":"SOURCE_FILES","names":["gen.cpp"]}]}]}').encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    material, = polygon.problem_materials(PROBLEM_ID)
+
+    assert material.name == 'разбор'
+    assert material.publish_strategy == MaterialPublishStrategy.WITH_TUTORIAL
+    inputs, answers, sources = material.items
+    assert inputs.tests[0].index == 1
+    assert answers.tests[0].as_input is True
+    assert sources.type == MaterialItemType.SOURCE_FILES
+    assert sources.names == ['gen.cpp']
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.materials', {'problemId': b'42'})
+
+
+def test_set_material_sends_the_items_and_accepts_a_response_without_a_result(local_api_endpoint, polygon):
+    """
+    The docs: a successful problem.setMaterial answers {"status":"OK"} with no result field. The
+    items go in the request body as JSON, which non-ASCII names have to survive.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_set_material(PROBLEM_ID, 'разбор', MaterialPublishStrategy.WITH_TUTORIAL, [
+        MaterialItem(MaterialItemType.TEST_INPUTS, tests=[MaterialTest('tests', all=True)]),
+        MaterialItem(MaterialItemType.RESOURCE_FILES, names=['картинка.png']),
+    ])
+
+    assert result is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.setMaterial', {
+        'problemId': b'42',
+        'name': 'разбор'.encode('utf-8'),
+        'publishStrategy': b'WITH_TUTORIAL',
+        'items': (b'[{"type":"TEST_INPUTS","tests":[{"testset":"tests","all":true}]},'
+                  b'{"type":"RESOURCE_FILES","names":["\\u043a\\u0430\\u0440\\u0442\\u0438\\u043d'
+                  b'\\u043a\\u0430.png"]}]'),
+    })
+    assert json.loads(request.fields['items'])[1]['names'] == ['картинка.png']
+
+
+def test_remove_material_sends_the_lowercase_flag(local_api_endpoint, polygon):
+    """The docs: only the lowercase values true and false are accepted for remove."""
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_set_material(PROBLEM_ID, 'statements', remove=True)
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.setMaterial', {
+        'problemId': b'42',
+        'name': b'statements',
+        'remove': b'true',
     })
