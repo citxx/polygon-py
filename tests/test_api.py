@@ -360,10 +360,19 @@ class TestTestPointsParsing:
         {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': False},
         {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': False},
     ], ids=['manual', 'generated'])
-    def test_absent_points_are_zero(self, polygon, test_json):
+    def test_absent_points_are_none(self, polygon, test_json):
+        """Polygon leaves points out while test points are disabled for the problem."""
         test = api.Test.from_json(polygon, 1, 'tests', test_json)
-        assert isinstance(test.points, float)
+        assert test.points is None
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '1 2\n', 'useInStatements': False},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 1', 'useInStatements': False},
+    ], ids=['manual', 'generated'])
+    def test_zero_points_sent_by_polygon_stay_zero(self, polygon, test_json):
+        test = api.Test.from_json(polygon, 1, 'tests', dict(test_json, points=0))
         assert test.points == 0.0
+        assert isinstance(test.points, float)
 
 
 class TestManualTestInputBytes:
@@ -3607,3 +3616,33 @@ class TestInteractionLogForStatements:
         for test in (manual, generated):
             assert test.interaction_log_for_statements == '> 3\n'
             assert test.pin == '1234'
+
+
+class TestManualTestSavePoints:
+    """
+    Polygon rejects testPoints, even 0, while test points are disabled for the problem, and leaves
+    points out of problem.tests then. Reading the absent points as 0.0 made ManualTest.save fail
+    with "testPoints: Test points are disabled" on every such problem.
+    """
+
+    def test_save_omits_the_points_polygon_left_out(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        api.Test.from_json(polygon, 1, 'tests', {'index': 1, 'manual': True, 'input': '1 2\n',
+                                                 'useInStatements': False}).save()
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.saveTest'
+        assert b'testPoints' not in _sent_args(calls)
+
+    @pytest.mark.parametrize('points, sent', [(2.5, b'2.5'), (0, b'0.0')])
+    def test_save_sends_the_points_polygon_returned(self, polygon, monkeypatch, points, sent):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        api.Test.from_json(polygon, 1, 'tests', {'index': 1, 'manual': True, 'input': '1 2\n',
+                                                 'useInStatements': False, 'points': points}).save()
+        assert _sent_args(calls)[b'testPoints'] == sent
+
+    def test_save_sends_points_set_on_a_test_without_them(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        test = api.Test.from_json(polygon, 1, 'tests', {'index': 1, 'manual': True, 'input': '1 2\n',
+                                                        'useInStatements': False})
+        test.points = 3
+        test.save()
+        assert _sent_args(calls)[b'testPoints'] == b'3'
