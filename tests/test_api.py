@@ -431,28 +431,50 @@ class TestVerifyInputOutputForStatementsParsing:
 
 class TestProblemInfoParsing:
     """
-    problem.info returns wellFormed and skipDuplicatedTestsValidation next to the limits. Both
-    are read leniently: a problem for which Polygon omits a flag must still yield a ProblemInfo
-    instead of failing the whole call.
+    problem.info returns wellFormed, skipDuplicatedTestsValidation, useInteractionLogInExampleTests,
+    runTwice and interactiveSecondRun next to the limits. All of them are read leniently: a problem
+    for which Polygon omits a flag (the docs give two of them only for interactive problems) must
+    still yield a ProblemInfo instead of failing the whole call.
     """
 
     def test_from_json_with_all_fields(self):
         info = ProblemInfo.from_json({
             'inputFile': 'input.txt',
             'outputFile': 'output.txt',
-            'interactive': False,
+            'interactive': True,
+            'useInteractionLogInExampleTests': True,
             'wellFormed': True,
             'skipDuplicatedTestsValidation': False,
+            'runTwice': True,
+            'interactiveSecondRun': False,
             'timeLimit': 2000,
             'memoryLimit': 256,
         })
         assert info.input_file == 'input.txt'
         assert info.output_file == 'output.txt'
-        assert info.interactive is False
+        assert info.interactive is True
+        assert info.use_interaction_log_in_example_tests is True
         assert info.well_formed is True
         assert info.skip_duplicated_tests_validation is False
+        assert info.run_twice is True
+        assert info.interactive_second_run is False
         assert info.time_limit == 2000
         assert info.memory_limit == 256
+
+    def test_a_non_interactive_problem_without_the_interactive_only_flags(self):
+        info = ProblemInfo.from_json({
+            'inputFile': 'input.txt',
+            'outputFile': 'output.txt',
+            'interactive': False,
+            'wellFormed': False,
+            'skipDuplicatedTestsValidation': False,
+            'runTwice': True,
+            'timeLimit': 2000,
+            'memoryLimit': 256,
+        })
+        assert info.run_twice is True
+        assert info.use_interaction_log_in_example_tests is None
+        assert info.interactive_second_run is None
 
     def test_positional_construction_stays_backwards_compatible(self):
         info = ProblemInfo('input.txt', 'output.txt', False, 2000, 256)
@@ -463,6 +485,9 @@ class TestProblemInfoParsing:
         assert info.memory_limit == 256
         assert info.well_formed is None
         assert info.skip_duplicated_tests_validation is None
+        assert info.use_interaction_log_in_example_tests is None
+        assert info.run_twice is None
+        assert info.interactive_second_run is None
 
     def test_flags_default_to_none_when_absent(self):
         info = ProblemInfo.from_json({
@@ -474,6 +499,9 @@ class TestProblemInfoParsing:
         })
         assert info.well_formed is None
         assert info.skip_duplicated_tests_validation is None
+        assert info.use_interaction_log_in_example_tests is None
+        assert info.run_twice is None
+        assert info.interactive_second_run is None
 
 
 class TestTestDeletionFailureParsing:
@@ -1860,10 +1888,13 @@ class TestTestObjectPin:
 
 class TestUpdateInfoArguments:
     """
-    Both flags are optional API parameters. They have to reach Polygon under their documented
+    The flags are optional API parameters. They have to reach Polygon under their documented
     names when set - including the False that clears a flag - and stay out of the request
     entirely when unset, so a partial update can not touch a flag it never mentioned.
     """
+
+    FLAGS = [b'wellFormed', b'skipDuplicatedTestsValidation', b'useInteractionLogInExampleTests', b'runTwice',
+             b'interactiveSecondRun']
 
     def test_flags_are_sent_under_their_documented_names(self, polygon, monkeypatch):
         calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
@@ -1872,13 +1903,59 @@ class TestUpdateInfoArguments:
         assert args[b'wellFormed'] == b'true'
         assert args[b'skipDuplicatedTestsValidation'] == b'false'
 
+    def test_the_interactive_flags_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_update_info(1, ProblemInfo(interactive=True, use_interaction_log_in_example_tests=True,
+                                                   run_twice=True, interactive_second_run=False))
+        args = dict(calls[-1]['files'])
+        assert args[b'useInteractionLogInExampleTests'] == b'true'
+        assert args[b'runTwice'] == b'true'
+        assert args[b'interactiveSecondRun'] == b'false'
+
     def test_flags_are_omitted_when_left_unset(self, polygon, monkeypatch):
         calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
         polygon.problem_update_info(1, ProblemInfo(time_limit=2000))
         args = dict(calls[-1]['files'])
         assert args[b'timeLimit'] == b'2000'
-        assert b'wellFormed' not in args
-        assert b'skipDuplicatedTestsValidation' not in args
+        for flag in self.FLAGS:
+            assert flag not in args
+
+    def test_switching_interactive_off_drops_the_interactive_only_flags(self, polygon, monkeypatch):
+        """
+        Polygon rejects any value of the two for a non-interactive problem, even False, and checks
+        them against the interactive value of the same request. Sending them back from a ProblemInfo
+        read while the problem was interactive would make switching it off fail.
+        """
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_update_info(1, ProblemInfo(interactive=False, use_interaction_log_in_example_tests=True,
+                                                   run_twice=True, interactive_second_run=False))
+        args = dict(calls[-1]['files'])
+        assert args[b'interactive'] == b'false'
+        assert args[b'runTwice'] == b'true'
+        assert b'useInteractionLogInExampleTests' not in args
+        assert b'interactiveSecondRun' not in args
+
+    def test_the_interactive_only_flags_are_sent_when_interactive_is_left_unset(self, polygon, monkeypatch):
+        """Without interactive in the request, Polygon checks them against the stored value instead."""
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_update_info(1, ProblemInfo(use_interaction_log_in_example_tests=False,
+                                                   interactive_second_run=True))
+        args = dict(calls[-1]['files'])
+        assert b'interactive' not in args
+        assert args[b'useInteractionLogInExampleTests'] == b'false'
+        assert args[b'interactiveSecondRun'] == b'true'
+
+    def test_run_twice_alone_sends_nothing_else(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_update_info(1, ProblemInfo(run_twice=False))
+        assert set(dict(calls[-1]['files'])) == {b'problemId', b'runTwice', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.update_info(ProblemInfo(run_twice=True, interactive_second_run=True))
+        args = dict(calls[-1]['files'])
+        assert args[b'runTwice'] == b'true'
+        assert args[b'interactiveSecondRun'] == b'true'
 
 
 class TestSaveStatementArguments:

@@ -149,7 +149,13 @@ class Polygon:
 
     def problem_update_info(self, problem_id, problem_info, pin=None):
         """
+        Updates the problem info with the fields of problem_info that are not None. With
+        interactive=False, use_interaction_log_in_example_tests and interactive_second_run are not
+        sent: Polygon rejects any value of them for a non-interactive problem, so a ProblemInfo read
+        from an interactive problem can be sent back with interactive switched off
         """
+        # Polygon checks these two against the interactive value of the same request.
+        send_interactive_only_flags = problem_info.interactive is not False
         response = self._request_ok_or_raise(
             self._PROBLEM_UPDATE_INFO,
             args={
@@ -159,6 +165,10 @@ class Polygon:
                 'interactive': problem_info.interactive,  # TODO
                 'wellFormed': problem_info.well_formed,
                 'skipDuplicatedTestsValidation': problem_info.skip_duplicated_tests_validation,
+                'useInteractionLogInExampleTests':
+                    problem_info.use_interaction_log_in_example_tests if send_interactive_only_flags else None,
+                'runTwice': problem_info.run_twice,
+                'interactiveSecondRun': problem_info.interactive_second_run if send_interactive_only_flags else None,
                 'timeLimit': problem_info.time_limit,
                 'memoryLimit': problem_info.memory_limit,
                 'pin': pin,
@@ -1672,6 +1682,9 @@ class ProblemInfo:
     _INTERACTIVE = 'interactive'
     _WELL_FORMED = 'wellFormed'
     _SKIP_DUPLICATED_TESTS_VALIDATION = 'skipDuplicatedTestsValidation'
+    _USE_INTERACTION_LOG_IN_EXAMPLE_TESTS = 'useInteractionLogInExampleTests'
+    _RUN_TWICE = 'runTwice'
+    _INTERACTIVE_SECOND_RUN = 'interactiveSecondRun'
     _TIME_LIMIT = 'timeLimit'
     _MEMORY_LIMIT = 'memoryLimit'
 
@@ -1686,10 +1699,17 @@ class ProblemInfo:
                 ProblemInfo._SKIP_DUPLICATED_TESTS_VALIDATION, None),
             time_limit=problem_info_json[ProblemInfo._TIME_LIMIT],
             memory_limit=problem_info_json[ProblemInfo._MEMORY_LIMIT],
+            # The docs give useInteractionLogInExampleTests and interactiveSecondRun only for
+            # interactive problems, so all three are read leniently like the flags above.
+            use_interaction_log_in_example_tests=problem_info_json.get(
+                ProblemInfo._USE_INTERACTION_LOG_IN_EXAMPLE_TESTS, None),
+            run_twice=problem_info_json.get(ProblemInfo._RUN_TWICE, None),
+            interactive_second_run=problem_info_json.get(ProblemInfo._INTERACTIVE_SECOND_RUN, None),
         )
 
     def __init__(self, input_file=None, output_file=None, interactive=None, time_limit=None, memory_limit=None,
-                 well_formed=None, skip_duplicated_tests_validation=None):
+                 well_formed=None, skip_duplicated_tests_validation=None, use_interaction_log_in_example_tests=None,
+                 run_twice=None, interactive_second_run=None):
         self.input_file = input_file
         self.output_file = output_file
         self.interactive = interactive
@@ -1697,6 +1717,9 @@ class ProblemInfo:
         self.memory_limit = memory_limit
         self.well_formed = well_formed
         self.skip_duplicated_tests_validation = skip_duplicated_tests_validation
+        self.use_interaction_log_in_example_tests = use_interaction_log_in_example_tests
+        self.run_twice = run_twice
+        self.interactive_second_run = interactive_second_run
 
 
 class CommitResult:
