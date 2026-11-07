@@ -1093,3 +1093,28 @@ def test_info_of_an_interactive_problem_can_be_sent_back_with_interactive_switch
         'timeLimit': b'1000',
         'memoryLimit': b'256',
     })
+
+
+def test_save_test_sends_a_multiline_interaction_log_as_utf8(local_api_endpoint, polygon):
+    """
+    An interaction log spans many lines and may hold any text the interactor prints, so it has
+    to reach the API, and apiSig, byte for byte.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":null}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+    log = '> 100\r\n< 50\r\n> больше\r\n< 75\r\n'
+
+    polygon.problem_save_test(PROBLEM_ID, 'tests', 1, '100\n', test_use_in_statements=True,
+                              test_interaction_log_for_statements=log)
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.saveTest', {
+        'problemId': b'42',
+        'testset': b'tests',
+        'testIndex': b'1',
+        'testInput': b'100\n',
+        'testUseInStatements': b'true',
+        'testInteractionLogForStatements': log.encode('utf-8'),
+    })

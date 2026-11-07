@@ -468,7 +468,7 @@ class Polygon:
     def problem_save_test(self, problem_id, testset, test_index, test_input, test_group=None, test_points=None,
                           test_description=None, test_use_in_statements=None, test_input_for_statements=None,
                           test_output_for_statements=None, verify_input_output_for_statements=None,
-                          check_existing=None, pin=None):
+                          check_existing=None, test_interaction_log_for_statements=None, pin=None):
         """
         """
         response = self._request_ok_or_raise(
@@ -484,6 +484,7 @@ class Polygon:
                 'testUseInStatements': test_use_in_statements,
                 'testInputForStatements': test_input_for_statements,
                 'testOutputForStatements': test_output_for_statements,
+                'testInteractionLogForStatements': test_interaction_log_for_statements,
                 'verifyInputOutputForStatements': verify_input_output_for_statements,
                 'checkExisting': check_existing,
                 'pin': pin,
@@ -1477,11 +1478,13 @@ class Problem:
 
     def save_test(self, testset, test_index, test_input, test_group=None, test_points=None, test_description=None,
                   test_use_in_statements=None, test_input_for_statements=None, test_output_for_statements=None,
-                  verify_input_output_for_statements=None, check_existing=None, pin=None):
+                  verify_input_output_for_statements=None, check_existing=None,
+                  test_interaction_log_for_statements=None, pin=None):
         return self._polygon.problem_save_test(self.id, testset, test_index, test_input, test_group, test_points,
                                                test_description, test_use_in_statements, test_input_for_statements,
                                                test_output_for_statements, verify_input_output_for_statements,
-                                               check_existing, pin=self._resolve_pin(pin))
+                                               check_existing, test_interaction_log_for_statements,
+                                               pin=self._resolve_pin(pin))
 
     def delete_test(self, testset, test_index=None, test_indices=None, pin=None):
         return self._polygon.problem_delete_test(self.id, testset, test_index, test_indices,
