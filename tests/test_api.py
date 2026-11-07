@@ -3509,3 +3509,47 @@ class TestAddStressCountertest:
         args = _sent_args(calls)
         assert args[b'stressIndex'] == b'2'
         assert args[b'testset'] == b'samples'
+
+
+class TestSaveTestInteractionLog:
+    """
+    problem.saveTest takes the interaction log shown in the statements next to the input and
+    output for statements. It is optional like them: left as None it is not sent, so editing a
+    test does not touch a log it never mentioned.
+    """
+
+    URL = 'https://example.invalid/api/problem.saveTest'
+
+    def test_the_log_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_test(1, 'tests', 1, '3\n', test_use_in_statements=True,
+                                  test_interaction_log_for_statements='> 3\n< 7\n')
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'testInteractionLogForStatements'] == b'> 3\n< 7\n'
+
+    def test_the_log_is_omitted_when_left_unset(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_test(1, 'tests', 1, '3\n')
+        assert set(_sent_args(calls)) == {b'problemId', b'testset', b'testIndex', b'testInput',
+                                          b'apiKey', b'time', b'apiSig'}
+
+    def test_an_empty_log_is_sent_rather_than_dropped(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_test(1, 'tests', 1, '3\n', test_interaction_log_for_statements='')
+        assert _sent_args(calls)[b'testInteractionLogForStatements'] == b''
+
+    def test_check_existing_keeps_its_positional_slot(self, polygon, monkeypatch):
+        """The log is added after check_existing, so a call passing it positionally means the same."""
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_test(1, 'tests', 1, '3\n', None, None, None, None, None, None, None, True)
+        args = _sent_args(calls)
+        assert args[b'checkExisting'] == b'true'
+        assert b'testInteractionLogForStatements' not in args
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.save_test('tests', 1, '3\n', test_interaction_log_for_statements='> 3\n< 7\n', check_existing=True)
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert args[b'testInteractionLogForStatements'] == b'> 3\n< 7\n'
+        assert args[b'checkExisting'] == b'true'
