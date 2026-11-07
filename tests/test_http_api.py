@@ -21,6 +21,9 @@ from polygon_api import (
     ProblemAccessType,
     RenderStatus,
     SolutionTag,
+    StressRunStatus,
+    StressRunVerdict,
+    StressSolutionVerdict,
 )
 
 
@@ -817,4 +820,135 @@ def test_invocation_results_are_parsed_from_a_full_api_response(local_api_endpoi
     _assert_signed_request(request, 'problem.invocation', {
         'problemId': b'42',
         'invocationId': b'501',
+    })
+
+
+def test_stresses_are_parsed_from_the_example_response_in_the_docs(local_api_endpoint, polygon):
+    """The example response of problem.stresses in the docs: a finished stress and a running one."""
+    local_api_endpoint.enqueue_response(
+        json.dumps({
+            'status': 'OK',
+            'result': [
+                {
+                    'index': 1,
+                    'scriptPattern': 'gen 10 [5..100] abacaba',
+                    'solutionNames': ['main.cpp', 'wa.cpp'],
+                    'timeLimit': 2000,
+                    'memoryLimit': 256,
+                    'totalTimeLimit': 60000,
+                    'ignoreValidators': False,
+                    'description': 'small random tests',
+                    'run': {
+                        'status': 'FINISHED',
+                        'verdict': 'OK',
+                        'judgedTestCount': 412,
+                        'maxConsumedTime': 31,
+                        'maxConsumedMemory': 4194304,
+                        'countertest': {
+                            'input': '57\n3 1 4 1 5 ...',
+                            'inputTruncated': True,
+                            'scriptLine': 'gen 10 57 abacaba 2f8a91',
+                            'reports': [
+                                {'solutionName': 'wa.cpp', 'verdict': 'WRONG_ANSWER', 'consumedTime': 15,
+                                 'consumedMemory': 2097152, 'output': '12', 'outputTruncated': False,
+                                 'answer': '13', 'answerTruncated': False,
+                                 'comment': 'wrong answer expected 13, found 12'},
+                            ],
+                        },
+                    },
+                },
+                {
+                    'index': 2,
+                    'scriptPattern': 'gen 1000 [1..1000000000]',
+                    'solutionNames': ['main.cpp', 'slow.cpp'],
+                    'timeLimit': 2000,
+                    'memoryLimit': 256,
+                    'totalTimeLimit': 30000,
+                    'testset': 'tests',
+                    'ignoreValidators': False,
+                    'description': '',
+                    'run': {'status': 'RUNNING'},
+                },
+            ],
+        }).encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    finished, running = polygon.problem_stresses(PROBLEM_ID)
+
+    assert finished.run.status == StressRunStatus.FINISHED
+    assert finished.run.verdict == StressRunVerdict.OK
+    assert finished.run.judged_test_count == 412
+    assert finished.run.countertest.script_line == 'gen 10 57 abacaba 2f8a91'
+    report, = finished.run.countertest.reports
+    assert report.verdict == StressSolutionVerdict.WRONG_ANSWER
+    assert (report.output, report.answer) == ('12', '13')
+    assert finished.testset is None
+    assert running.testset == 'tests'
+    assert running.run.status == StressRunStatus.RUNNING
+    assert running.run.verdict is None
+    assert running.run.countertest is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.stresses', {'problemId': b'42'})
+
+
+def test_save_stress_creates_a_stress_and_parses_it(local_api_endpoint, polygon):
+    """The saved stress comes back without a run, and the main correct solution is added first."""
+    local_api_endpoint.enqueue_response(
+        ('{"status":"OK","result":{"index":3,"scriptPattern":"gen [1..10] | gen 5",'
+         '"solutionNames":["main.cpp","wa.cpp","tl.cpp"],"timeLimit":2000,"memoryLimit":256,'
+         '"totalTimeLimit":60000,"ignoreValidators":true,"description":"маленькие тесты"}}').encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    stress = polygon.problem_save_stress(PROBLEM_ID, script_pattern='gen [1..10] | gen 5',
+                                         solution_names=['wa.cpp', 'tl.cpp'], ignore_validators=True,
+                                         description='маленькие тесты')
+
+    assert stress.index == 3
+    assert stress.solution_names == ['main.cpp', 'wa.cpp', 'tl.cpp']
+    assert stress.description == 'маленькие тесты'
+    assert stress.run is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.saveStress', {
+        'problemId': b'42',
+        'scriptPattern': b'gen [1..10] | gen 5',
+        'solutionNames': b'wa.cpp,tl.cpp',
+        'ignoreValidators': b'true',
+        'description': 'маленькие тесты'.encode('utf-8'),
+    })
+
+
+def test_an_empty_description_survives_the_multipart_encoding(local_api_endpoint, polygon):
+    """An empty description is how problem.saveStress clears it, so it must reach the API and apiSig."""
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":{"index":3,"scriptPattern":"gen [1..10]","solutionNames":["main.cpp"],'
+        b'"timeLimit":2000,"memoryLimit":256,"totalTimeLimit":60000,"ignoreValidators":false,"description":""}}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    stress = polygon.problem_save_stress(PROBLEM_ID, stress_index=3, description='')
+
+    assert stress.description == ''
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.saveStress', {
+        'problemId': b'42',
+        'stressIndex': b'3',
+        'description': b'',
+    })
+
+
+def test_delete_stress_sends_the_index(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_delete_stress(PROBLEM_ID, 3)
+
+    assert result is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.deleteStress', {
+        'problemId': b'42',
+        'stressIndex': b'3',
     })

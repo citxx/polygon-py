@@ -97,6 +97,9 @@ class Polygon:
     _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
     _PROBLEM_INVOCATIONS = 'problem.invocations'
     _PROBLEM_INVOCATION = 'problem.invocation'
+    _PROBLEM_STRESSES = 'problem.stresses'
+    _PROBLEM_SAVE_STRESS = 'problem.saveStress'
+    _PROBLEM_DELETE_STRESS = 'problem.deleteStress'
     _PROBLEM_CAUTIONS = 'problem.cautions'
     _PROBLEM_ISSUES = 'problem.issues'
     _PROBLEM_ADD_ISSUE = 'problem.addIssue'
@@ -1079,6 +1082,67 @@ class Polygon:
         )
         return InvocationResults.from_json(response.result)
 
+    def problem_stresses(self, problem_id, stress_index=None, pin=None):
+        """
+        Returns the stresses of the problem with the latest run of each, in the order of their
+        indices. With stress_index, only that stress, still in a list: use it to poll a running stress
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_STRESSES,
+            args={
+                'problemId': problem_id,
+                'stressIndex': stress_index,
+                'pin': pin,
+            },
+        )
+        return [Stress.from_json(js) for js in response.result]
+
+    def problem_save_stress(self, problem_id, stress_index=None, script_pattern=None, solution_names=None,
+                            time_limit=None, memory_limit=None, total_time_limit=None, testset=None, group=None,
+                            ignore_validators=None, description=None, pin=None):
+        """
+        Creates a stress when stress_index is None, which needs script_pattern and solution_names, or
+        updates the stress with that index, keeping the values left as None; an empty testset,
+        group or description clears it. Returns the saved Stress without a run: every save discards
+        the result of the previous run
+        """
+        if stress_index is None and (script_pattern is None or solution_names is None):
+            raise ValueError("Both script_pattern and solution_names must be specified to create a stress")
+        solution_names = _comma_separated(solution_names)
+        response = self._request_ok_or_raise(
+            self._PROBLEM_SAVE_STRESS,
+            args={
+                'problemId': problem_id,
+                'stressIndex': stress_index,
+                'scriptPattern': script_pattern,
+                'solutionNames': solution_names,
+                'timeLimit': time_limit,
+                'memoryLimit': memory_limit,
+                'totalTimeLimit': total_time_limit,
+                'testset': testset,
+                'group': group,
+                'ignoreValidators': ignore_validators,
+                'description': description,
+                'pin': pin,
+            },
+        )
+        return Stress.from_json(response.result)
+
+    def problem_delete_stress(self, problem_id, stress_index, pin=None):
+        """
+        Deletes a stress and the result of its run; the tests added from it are kept. A running
+        stress is not cancelled: call problem.cancelStresses first to free the invokers
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_DELETE_STRESS,
+            args={
+                'problemId': problem_id,
+                'stressIndex': stress_index,
+                'pin': pin,
+            },
+        )
+        return response.result
+
     def problem_cautions(self, problem_id, pin=None):
         """
         Returns structured cautions, package readiness issues and cached AI tips of the problem
@@ -1502,6 +1566,19 @@ class Problem:
 
     def invocation(self, invocation_id, pin=None):
         return self._polygon.problem_invocation(self.id, invocation_id, pin=self._resolve_pin(pin))
+
+    def stresses(self, stress_index=None, pin=None):
+        return self._polygon.problem_stresses(self.id, stress_index, pin=self._resolve_pin(pin))
+
+    def save_stress(self, stress_index=None, script_pattern=None, solution_names=None, time_limit=None,
+                    memory_limit=None, total_time_limit=None, testset=None, group=None, ignore_validators=None,
+                    description=None, pin=None):
+        return self._polygon.problem_save_stress(self.id, stress_index, script_pattern, solution_names, time_limit,
+                                                 memory_limit, total_time_limit, testset, group, ignore_validators,
+                                                 description, pin=self._resolve_pin(pin))
+
+    def delete_stress(self, stress_index, pin=None):
+        return self._polygon.problem_delete_stress(self.id, stress_index, pin=self._resolve_pin(pin))
 
     def cautions(self, pin=None):
         return self._polygon.problem_cautions(self.id, pin=self._resolve_pin(pin))
@@ -2203,6 +2280,158 @@ class InvocationResults:
         self.invocation = invocation
         self.solution_tags = solution_tags
         self.runs = runs
+
+
+class Stress:
+    """
+    Object: representing a stress of a Polygon problem, with the latest run of its current version
+    """
+    _INDEX = "index"
+    _SCRIPT_PATTERN = "scriptPattern"
+    _SOLUTION_NAMES = "solutionNames"
+    _TIME_LIMIT = "timeLimit"
+    _MEMORY_LIMIT = "memoryLimit"
+    _TOTAL_TIME_LIMIT = "totalTimeLimit"
+    _TESTSET = "testset"
+    _GROUP = "group"
+    _IGNORE_VALIDATORS = "ignoreValidators"
+    _DESCRIPTION = "description"
+    _RUN = "run"
+
+    @classmethod
+    def from_json(cls, stress_json):
+        run = stress_json.get(Stress._RUN, None)
+        return cls(
+            index=stress_json[Stress._INDEX],
+            script_pattern=stress_json[Stress._SCRIPT_PATTERN],
+            solution_names=stress_json[Stress._SOLUTION_NAMES],
+            time_limit=stress_json[Stress._TIME_LIMIT],
+            memory_limit=stress_json[Stress._MEMORY_LIMIT],
+            total_time_limit=stress_json[Stress._TOTAL_TIME_LIMIT],
+            testset=stress_json.get(Stress._TESTSET, None),
+            group=stress_json.get(Stress._GROUP, None),
+            ignore_validators=stress_json[Stress._IGNORE_VALIDATORS],
+            description=stress_json[Stress._DESCRIPTION],
+            run=None if run is None else StressRun.from_json(run),
+        )
+
+    def __init__(self, index, script_pattern, solution_names, time_limit, memory_limit, total_time_limit,
+                 testset, group, ignore_validators, description, run=None):
+        self.index = index
+        self.script_pattern = script_pattern
+        self.solution_names = solution_names
+        self.time_limit = time_limit
+        self.memory_limit = memory_limit
+        self.total_time_limit = total_time_limit
+        self.testset = testset
+        self.group = group
+        self.ignore_validators = ignore_validators
+        self.description = description
+        self.run = run
+
+
+class StressRun:
+    """
+    Object: representing the latest run of a stress. verdict and the statistics are set only once
+    it is FINISHED; whether a countertest was found shows in countertest, not in verdict
+    """
+    _STATUS = "status"
+    _VERDICT = "verdict"
+    _COMMENT = "comment"
+    _JUDGED_TEST_COUNT = "judgedTestCount"
+    _MAX_CONSUMED_TIME = "maxConsumedTime"
+    _MAX_CONSUMED_MEMORY = "maxConsumedMemory"
+    _COUNTERTEST = "countertest"
+
+    @classmethod
+    def from_json(cls, run_json):
+        verdict = run_json.get(StressRun._VERDICT, None)
+        countertest = run_json.get(StressRun._COUNTERTEST, None)
+        return cls(
+            status=StressRunStatus[run_json[StressRun._STATUS]],
+            verdict=None if verdict is None else StressRunVerdict[verdict],
+            comment=run_json.get(StressRun._COMMENT, None),
+            judged_test_count=run_json.get(StressRun._JUDGED_TEST_COUNT, None),
+            max_consumed_time=run_json.get(StressRun._MAX_CONSUMED_TIME, None),
+            max_consumed_memory=run_json.get(StressRun._MAX_CONSUMED_MEMORY, None),
+            countertest=None if countertest is None else StressCountertest.from_json(countertest),
+        )
+
+    def __init__(self, status, verdict=None, comment=None, judged_test_count=None, max_consumed_time=None,
+                 max_consumed_memory=None, countertest=None):
+        self.status = status
+        self.verdict = verdict
+        self.comment = comment
+        self.judged_test_count = judged_test_count
+        self.max_consumed_time = max_consumed_time
+        self.max_consumed_memory = max_consumed_memory
+        self.countertest = countertest
+
+
+class StressCountertest:
+    """
+    Object: representing a countertest found by a stress run
+    """
+    _SCRIPT_LINE = "scriptLine"
+    _INPUT = "input"
+    _INPUT_TRUNCATED = "inputTruncated"
+    _REPORTS = "reports"
+
+    @classmethod
+    def from_json(cls, countertest_json):
+        return cls(
+            script_line=countertest_json[StressCountertest._SCRIPT_LINE],
+            input=countertest_json.get(StressCountertest._INPUT, None),
+            input_truncated=countertest_json[StressCountertest._INPUT_TRUNCATED],
+            reports=[StressSolutionReport.from_json(js) for js in countertest_json[StressCountertest._REPORTS]],
+        )
+
+    def __init__(self, script_line, input, input_truncated, reports):
+        self.script_line = script_line
+        self.input = input
+        self.input_truncated = input_truncated
+        self.reports = reports
+
+
+class StressSolutionReport:
+    """
+    Object: representing the result of a solution that failed a stress countertest
+    """
+    _SOLUTION_NAME = "solutionName"
+    _VERDICT = "verdict"
+    _CONSUMED_TIME = "consumedTime"
+    _CONSUMED_MEMORY = "consumedMemory"
+    _OUTPUT = "output"
+    _OUTPUT_TRUNCATED = "outputTruncated"
+    _ANSWER = "answer"
+    _ANSWER_TRUNCATED = "answerTruncated"
+    _COMMENT = "comment"
+
+    @classmethod
+    def from_json(cls, report_json):
+        return cls(
+            solution_name=report_json[StressSolutionReport._SOLUTION_NAME],
+            verdict=StressSolutionVerdict[report_json[StressSolutionReport._VERDICT]],
+            consumed_time=report_json[StressSolutionReport._CONSUMED_TIME],
+            consumed_memory=report_json[StressSolutionReport._CONSUMED_MEMORY],
+            output=report_json.get(StressSolutionReport._OUTPUT, None),
+            output_truncated=report_json[StressSolutionReport._OUTPUT_TRUNCATED],
+            answer=report_json.get(StressSolutionReport._ANSWER, None),
+            answer_truncated=report_json[StressSolutionReport._ANSWER_TRUNCATED],
+            comment=report_json.get(StressSolutionReport._COMMENT, None),
+        )
+
+    def __init__(self, solution_name, verdict, consumed_time, consumed_memory, output, output_truncated, answer,
+                 answer_truncated, comment=None):
+        self.solution_name = solution_name
+        self.verdict = verdict
+        self.consumed_time = consumed_time
+        self.consumed_memory = consumed_memory
+        self.output = output
+        self.output_truncated = output_truncated
+        self.answer = answer
+        self.answer_truncated = answer_truncated
+        self.comment = comment
 
 
 class Solution:
@@ -2986,6 +3215,40 @@ class InvocationRunVerdict(Enum):
     RJ = 9  # Skipped or rejected
     NO = 10  # Waiting
     TS = 11  # Being tested
+
+    def __str__(self):
+        return self.name
+
+
+class StressRunStatus(Enum):
+    PENDING = 0
+    RUNNING = 1  # Includes waiting in queues
+    FINISHED = 2
+
+    def __str__(self):
+        return self.name
+
+
+class StressRunVerdict(Enum):
+    OK = 0  # The stress ran normally, with or without a countertest
+    FAILED = 1  # The run itself failed: the generator, a validator, the main solution and so on
+    CRASHED = 2  # An unexpected failure
+
+    def __str__(self):
+        return self.name
+
+
+class StressSolutionVerdict(Enum):
+    WRONG_ANSWER = 0
+    PRESENTATION_ERROR = 1
+    TIME_LIMIT_EXCEEDED = 2
+    MEMORY_LIMIT_EXCEEDED = 3
+    IDLENESS_LIMIT_EXCEEDED = 4
+    RUNTIME_ERROR = 5
+    FAILED = 6
+    CRASHED = 7
+    TIME_LIMIT_EXCEEDED_OR_ACCEPTED = 8
+    TIME_LIMIT_EXCEEDED_OR_MEMORY_LIMIT_EXCEEDED = 9
 
     def __str__(self):
         return self.name
