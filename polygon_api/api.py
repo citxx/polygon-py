@@ -1759,6 +1759,7 @@ class Test:
     _POINTS = "points"
     _INPUT_FOR_STATEMENTS = "inputForStatement"
     _OUTPUT_FOR_STATEMENTS = "outputForStatement"
+    _INTERACTION_LOG_FOR_STATEMENTS = "interactionLogForStatement"
     _VERIFY_INPUT_OUTPUT_FOR_STATEMENTS = "verifyInputOutputForStatements"
 
     @classmethod
@@ -1769,7 +1770,8 @@ class Test:
             return GeneratedTest.from_json(polygon, problem_id, testset, test_json, pin)
 
     def __init__(self, polygon, problem_id, testset, index, group, points, description, use_in_statements,
-                 input_for_statements, output_for_statements, verify_input_output_for_statements, pin=None):
+                 input_for_statements, output_for_statements, verify_input_output_for_statements, pin=None,
+                 interaction_log_for_statements=None):
         self._polygon = polygon
         self._problem_id = problem_id
         self.testset = testset
@@ -1780,6 +1782,7 @@ class Test:
         self.use_in_statements = use_in_statements
         self.input_for_statements = input_for_statements
         self.output_for_statements = output_for_statements
+        self.interaction_log_for_statements = interaction_log_for_statements
         self.verify_input_output_for_statements = verify_input_output_for_statements
         self.pin = pin
 
@@ -1808,15 +1811,18 @@ class ManualTest(Test):
             use_in_statements=test_json[Test._USE_IN_STATEMENTS],
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
             output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
+            interaction_log_for_statements=test_json.get(Test._INTERACTION_LOG_FOR_STATEMENTS, None),
             verify_input_output_for_statements=test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None),
             pin=pin,
         )
 
     def __init__(self, polygon, problem_id, testset, index, input, group=None, points=None, description=None,
                  use_in_statements=None, input_for_statements=None, output_for_statements=None,
-                 verify_input_output_for_statements=None, input_bytes=None, pin=None):
+                 verify_input_output_for_statements=None, input_bytes=None, pin=None,
+                 interaction_log_for_statements=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
-                         input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
+                         input_for_statements, output_for_statements, verify_input_output_for_statements, pin,
+                         interaction_log_for_statements)
         self.input = input
         self.input_bytes = input_bytes
 
@@ -1825,6 +1831,7 @@ class ManualTest(Test):
                                                self.group, self.points, self.description, self.use_in_statements,
                                                self.input_for_statements, self.output_for_statements,
                                                self.verify_input_output_for_statements,
+                                               test_interaction_log_for_statements=self.interaction_log_for_statements,
                                                pin=self._resolve_pin(pin))
 
 
@@ -1843,14 +1850,17 @@ class GeneratedTest(Test):
             script_line=test_json[Test._SCRIPT_LINE],
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
             output_for_statements=test_json.get(Test._OUTPUT_FOR_STATEMENTS, None),
+            interaction_log_for_statements=test_json.get(Test._INTERACTION_LOG_FOR_STATEMENTS, None),
             verify_input_output_for_statements=test_json.get(Test._VERIFY_INPUT_OUTPUT_FOR_STATEMENTS, None),
             pin=pin,
         )
 
     def __init__(self, polygon, problem_id, testset, index, group, points, description, use_in_statements, script_line,
-                 input_for_statements, output_for_statements, verify_input_output_for_statements, pin=None):
+                 input_for_statements, output_for_statements, verify_input_output_for_statements, pin=None,
+                 interaction_log_for_statements=None):
         super().__init__(polygon, problem_id, testset, index, group, points, description, use_in_statements,
-                         input_for_statements, output_for_statements, verify_input_output_for_statements, pin)
+                         input_for_statements, output_for_statements, verify_input_output_for_statements, pin,
+                         interaction_log_for_statements)
         self.script_line = script_line
 
 
