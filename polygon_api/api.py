@@ -95,6 +95,8 @@ class Polygon:
     _PROBLEM_PACKAGES = 'problem.packages'
     _PROBLEM_PACKAGE = 'problem.package'
     _PROBLEM_BUILD_PACKAGE = 'problem.buildPackage'
+    _PROBLEM_INVOCATIONS = 'problem.invocations'
+    _PROBLEM_INVOCATION = 'problem.invocation'
     _PROBLEM_CAUTIONS = 'problem.cautions'
     _PROBLEM_ISSUES = 'problem.issues'
     _PROBLEM_ADD_ISSUE = 'problem.addIssue'
@@ -1046,6 +1048,37 @@ class Polygon:
         )
         return response.result
 
+    def problem_invocations(self, problem_id, package_id=None, pin=None):
+        """
+        Returns the invocations of the working copy, the newest first: the solution runs started on
+        the Invocations page and the verification runs of packages. With package_id, only the
+        verification of that package, one invocation per verified testset
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_INVOCATIONS,
+            args={
+                'problemId': problem_id,
+                'packageId': package_id,
+                'pin': pin,
+            },
+        )
+        return [Invocation.from_json(js) for js in response.result]
+
+    def problem_invocation(self, problem_id, invocation_id, pin=None):
+        """
+        Returns an invocation with the runs of its solutions on its tests stored so far. They are
+        complete only once the invocation is FINISHED and has a run for each solution and test
+        """
+        response = self._request_ok_or_raise(
+            self._PROBLEM_INVOCATION,
+            args={
+                'problemId': problem_id,
+                'invocationId': invocation_id,
+                'pin': pin,
+            },
+        )
+        return InvocationResults.from_json(response.result)
+
     def problem_cautions(self, problem_id, pin=None):
         """
         Returns structured cautions, package readiness issues and cached AI tips of the problem
@@ -1463,6 +1496,12 @@ class Problem:
 
     def build_package(self, verify, full, pin=None):
         return self._polygon.problem_build_package(self.id, verify, full, pin=self._resolve_pin(pin))
+
+    def invocations(self, package_id=None, pin=None):
+        return self._polygon.problem_invocations(self.id, package_id, pin=self._resolve_pin(pin))
+
+    def invocation(self, invocation_id, pin=None):
+        return self._polygon.problem_invocation(self.id, invocation_id, pin=self._resolve_pin(pin))
 
     def cautions(self, pin=None):
         return self._polygon.problem_cautions(self.id, pin=self._resolve_pin(pin))
@@ -2028,6 +2067,142 @@ class Package:
         self.state = state
         self.comment = comment
         self.type = type
+
+
+class Invocation:
+    """
+    Object: representing an invocation: runs of solutions on the tests of a testset
+    """
+    _ID = "id"
+    _DESCRIPTION = "description"
+    _TESTSET = "testset"
+    _STATUS = "status"
+    _CREATION_TIME_SECONDS = "creationTimeSeconds"
+    _PACKAGE_ID = "packageId"
+    _VIOLATE_TAG = "violateTag"
+    _SOLUTIONS = "solutions"
+    _TESTS = "tests"
+
+    @classmethod
+    def from_json(cls, invocation_json):
+        return cls(
+            invocation_id=invocation_json[Invocation._ID],
+            description=invocation_json[Invocation._DESCRIPTION],
+            testset=invocation_json[Invocation._TESTSET],
+            status=InvocationStatus[invocation_json[Invocation._STATUS]],
+            creation_time_seconds=invocation_json[Invocation._CREATION_TIME_SECONDS],
+            package_id=invocation_json.get(Invocation._PACKAGE_ID, None),
+            violate_tag=invocation_json[Invocation._VIOLATE_TAG],
+            solutions=invocation_json[Invocation._SOLUTIONS],
+            tests=invocation_json[Invocation._TESTS],
+        )
+
+    def __init__(self, invocation_id, description, testset, status, creation_time_seconds, package_id,
+                 violate_tag, solutions, tests):
+        self.id = invocation_id
+        self.description = description
+        self.testset = testset
+        self.status = status
+        self.creation_time_seconds = creation_time_seconds
+        self.package_id = package_id
+        self.violate_tag = violate_tag
+        self.solutions = solutions
+        self.tests = tests
+
+
+class SolutionTags:
+    """
+    Object: representing the tags of a solution as they were when an invocation started
+    """
+    _NAME = "name"
+    _TAG = "tag"
+    _TESTSET_TAGS = "testsetTags"
+    _GROUP_TAGS = "groupTags"
+
+    @classmethod
+    def from_json(cls, tags_json):
+        tag = tags_json.get(SolutionTags._TAG, None)
+
+        def extra_tags(field):
+            # The docs leave a mapping out when there are no extra tags, so absent reads as empty.
+            return {name: SolutionTag[code] for name, code in tags_json.get(field, {}).items()}
+
+        return cls(
+            name=tags_json[SolutionTags._NAME],
+            tag=None if tag is None else SolutionTag[tag],
+            testset_tags=extra_tags(SolutionTags._TESTSET_TAGS),
+            group_tags=extra_tags(SolutionTags._GROUP_TAGS),
+        )
+
+    def __init__(self, name, tag=None, testset_tags=None, group_tags=None):
+        self.name = name
+        self.tag = tag
+        self.testset_tags = {} if testset_tags is None else testset_tags
+        self.group_tags = {} if group_tags is None else group_tags
+
+
+class InvocationRun:
+    """
+    Object: representing a stored run of a solution on a test of an invocation
+    """
+    _ID = "id"
+    _SOLUTION = "solution"
+    _TEST = "test"
+    _VERDICT = "verdict"
+    _TIME_MILLIS = "timeMillis"
+    _MEMORY_BYTES = "memoryBytes"
+    _POINTS = "points"
+    _COMMENT = "comment"
+    _VIOLATE_TAG = "violateTag"
+
+    @classmethod
+    def from_json(cls, run_json):
+        points = run_json.get(InvocationRun._POINTS, None)
+        return cls(
+            run_id=run_json[InvocationRun._ID],
+            solution=run_json.get(InvocationRun._SOLUTION, None),
+            test=run_json[InvocationRun._TEST],
+            verdict=InvocationRunVerdict[run_json[InvocationRun._VERDICT]],
+            time_millis=run_json.get(InvocationRun._TIME_MILLIS, None),
+            memory_bytes=run_json.get(InvocationRun._MEMORY_BYTES, None),
+            # Read as a float like Test.points: the checker may return fractional points.
+            points=None if points is None else float(points),
+            comment=run_json.get(InvocationRun._COMMENT, None),
+            violate_tag=run_json[InvocationRun._VIOLATE_TAG],
+        )
+
+    def __init__(self, run_id, solution, test, verdict, time_millis, memory_bytes, points, comment, violate_tag):
+        self.id = run_id
+        self.solution = solution
+        self.test = test
+        self.verdict = verdict
+        self.time_millis = time_millis
+        self.memory_bytes = memory_bytes
+        self.points = points
+        self.comment = comment
+        self.violate_tag = violate_tag
+
+
+class InvocationResults:
+    """
+    Object: representing the stored results of an invocation, as returned by problem.invocation
+    """
+    _INVOCATION = "invocation"
+    _SOLUTION_TAGS = "solutionTags"
+    _RUNS = "runs"
+
+    @classmethod
+    def from_json(cls, results_json):
+        return cls(
+            invocation=Invocation.from_json(results_json[InvocationResults._INVOCATION]),
+            solution_tags=[SolutionTags.from_json(js) for js in results_json[InvocationResults._SOLUTION_TAGS]],
+            runs=[InvocationRun.from_json(js) for js in results_json[InvocationResults._RUNS]],
+        )
+
+    def __init__(self, invocation, solution_tags, runs):
+        self.invocation = invocation
+        self.solution_tags = solution_tags
+        self.runs = runs
 
 
 class Solution:
@@ -2783,6 +2958,34 @@ class MaterialItemType(Enum):
     SOURCE_FILES = 3
     AUX_FILES = 4
     SOLUTIONS = 5
+
+    def __str__(self):
+        return self.name
+
+
+class InvocationStatus(Enum):
+    PENDING = 0
+    RUNNING = 1
+    FINISHED = 2
+    ABORTED = 3
+
+    def __str__(self):
+        return self.name
+
+
+class InvocationRunVerdict(Enum):
+    OK = 0  # Accepted
+    WA = 1  # Wrong answer
+    PE = 2  # Presentation error
+    TL = 3  # Time limit exceeded
+    ML = 4  # Memory limit exceeded
+    IL = 5  # Idleness limit exceeded
+    RE = 6  # Runtime error
+    CE = 7  # Compilation error
+    FL = 8  # Failed
+    RJ = 9  # Skipped or rejected
+    NO = 10  # Waiting
+    TS = 11  # Being tested
 
     def __str__(self):
         return self.name

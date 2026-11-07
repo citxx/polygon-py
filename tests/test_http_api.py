@@ -8,6 +8,8 @@ from polygon_api import (
     CautionSeverity,
     DeleteTestsFailedException,
     FileType,
+    InvocationRunVerdict,
+    InvocationStatus,
     IssueStatus,
     IssueType,
     MaterialItem,
@@ -18,6 +20,7 @@ from polygon_api import (
     PolygonRequestFailedException,
     ProblemAccessType,
     RenderStatus,
+    SolutionTag,
 )
 
 
@@ -751,4 +754,67 @@ def test_remove_material_sends_the_lowercase_flag(local_api_endpoint, polygon):
         'problemId': b'42',
         'name': b'statements',
         'remove': b'true',
+    })
+
+
+def test_invocations_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """The verification of a package, one invocation per verified testset."""
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":['
+        b'{"id":502,"description":"Package #12 verification","testset":"tests","status":"RUNNING",'
+        b'"creationTimeSeconds":1790000100,"packageId":12,"violateTag":false,'
+        b'"solutions":["main.cpp","wa.cpp"],"tests":[1,2,3]},'
+        b'{"id":501,"description":"Package #12 verification","testset":"samples","status":"FINISHED",'
+        b'"creationTimeSeconds":1790000000,"packageId":12,"violateTag":false,'
+        b'"solutions":["main.cpp","wa.cpp"],"tests":[1]}]}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    running, finished = polygon.problem_invocations(PROBLEM_ID, package_id=12)
+
+    assert (running.id, running.status, running.testset) == (502, InvocationStatus.RUNNING, 'tests')
+    assert (finished.id, finished.status, finished.testset) == (501, InvocationStatus.FINISHED, 'samples')
+    assert running.tests == [1, 2, 3]
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.invocations', {
+        'problemId': b'42',
+        'packageId': b'12',
+    })
+
+
+def test_invocation_results_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    A finished invocation in which a solution tagged TL gets WA, which violates its tag, and a run
+    without a solution name, whose solution source is no longer stored.
+    """
+    local_api_endpoint.enqueue_response(
+        ('{"status":"OK","result":{'
+         '"invocation":{"id":501,"description":"проверка","testset":"tests","status":"FINISHED",'
+         '"creationTimeSeconds":1790000000,"violateTag":true,"solutions":["main.cpp","tl.cpp"],"tests":[1]},'
+         '"solutionTags":[{"name":"main.cpp","tag":"MA"},'
+         '{"name":"tl.cpp","tag":"TL","groupTags":{"subtask1":"OK"}}],'
+         '"runs":[{"id":1,"solution":"main.cpp","test":1,"verdict":"OK","timeMillis":31,'
+         '"memoryBytes":4194304,"comment":"ok 1 number","violateTag":false},'
+         '{"id":2,"solution":"tl.cpp","test":1,"verdict":"WA","timeMillis":980,"memoryBytes":4194304,'
+         '"points":1.5,"violateTag":true},'
+         '{"id":3,"test":1,"verdict":"RJ","violateTag":false}]}}').encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    results = polygon.problem_invocation(PROBLEM_ID, 501)
+
+    assert results.invocation.description == 'проверка'
+    assert results.invocation.package_id is None
+    main_tags, tl_tags = results.solution_tags
+    assert main_tags.tag == SolutionTag.MA
+    assert tl_tags.group_tags == {'subtask1': SolutionTag.OK}
+    assert tl_tags.testset_tags == {}
+    main_run, tl_run, lost_run = results.runs
+    assert (main_run.verdict, main_run.time_millis, main_run.points) == (InvocationRunVerdict.OK, 31, None)
+    assert (tl_run.verdict, tl_run.violate_tag, tl_run.points) == (InvocationRunVerdict.WA, True, 1.5)
+    assert (lost_run.solution, lost_run.verdict, lost_run.time_millis) == (None, InvocationRunVerdict.RJ, None)
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.invocation', {
+        'problemId': b'42',
+        'invocationId': b'501',
     })
