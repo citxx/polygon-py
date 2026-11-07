@@ -246,13 +246,13 @@ class Polygon:
 
     def problem_save_tags(self, problem_id, tags, pin=None):
         """
+        Replaces the tags of the problem with tags, a list or a comma-separated string
         """
-        tags_str = ','.join(tags)
         response = self._request_ok_or_raise(
             self._PROBLEM_SAVE_TAGS,
             args={
                 'problemId': problem_id,
-                'tags': tags_str,
+                'tags': _comma_separated(tags),
                 'pin': pin,
             },
         )
