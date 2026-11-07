@@ -647,3 +647,36 @@ def test_enable_treat_points_from_checker_as_percent_raises_on_the_http_400(loca
         'problemId': b'42',
         'enable': b'true',
     })
+
+
+def test_test_previews_are_parsed_from_a_full_api_response(local_api_endpoint, polygon):
+    """
+    A generated preview with non-ASCII input next to one still being generated, which comes back
+    without input and answer.
+    """
+    local_api_endpoint.enqueue_response(
+        ('{"status":"OK","result":['
+         '{"id":77,"session":"f3a9c1","creationTime":"Nov 4, 2026 1:19:03 PM",'
+         '"updateTime":"Nov 4, 2026 1:19:05 PM","problemId":42,"testset":"tests","testIndex":1,'
+         '"useInStatements":true,"input":"абв\\n","inputSha1":"%s","answer":"3\\n",'
+         '"changeAfterLastGenerate":false},'
+         '{"session":"f3a9c1","problemId":42,"testset":"tests","testIndex":2,'
+         '"useInStatements":false,"changeAfterLastGenerate":true}]}' % ('a' * 40)).encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    generated, pending = polygon.problem_preview_tests(PROBLEM_ID, 'tests')
+
+    assert generated.input == 'абв\n'
+    assert generated.answer == '3\n'
+    assert generated.creation_time == 'Nov 4, 2026 1:19:03 PM'
+    assert generated.use_in_statements is True
+    assert pending.test_index == 2
+    assert pending.input is None
+    assert pending.answer is None
+    assert pending.change_after_last_generate is True
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.previewTests', {
+        'problemId': b'42',
+        'testset': b'tests',
+    })
