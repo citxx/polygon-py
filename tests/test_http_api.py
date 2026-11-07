@@ -1118,3 +1118,33 @@ def test_save_test_sends_a_multiline_interaction_log_as_utf8(local_api_endpoint,
         'testUseInStatements': b'true',
         'testInteractionLogForStatements': log.encode('utf-8'),
     })
+
+
+def test_an_interaction_log_read_from_tests_is_saved_back(local_api_endpoint, polygon):
+    """problem.tests returns the log of a manual test, and saving the test sends it back unchanged."""
+    local_api_endpoint.enqueue_response(
+        ('{"status":"OK","result":[{"index":1,"manual":true,"input":"100\\n","useInStatements":true,'
+         '"interactionLogForStatement":"> 100\\n< 50\\n> больше\\n"}]}').encode('utf-8'),
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":null}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    test, = polygon.problem_tests(PROBLEM_ID, 'tests')
+    assert test.interaction_log_for_statements == '> 100\n< 50\n> больше\n'
+    test.save()
+
+    tests_request, save_request = local_api_endpoint.requests
+    _assert_signed_request(tests_request, 'problem.tests', {'problemId': b'42', 'testset': b'tests'})
+    _assert_signed_request(save_request, 'problem.saveTest', {
+        'problemId': b'42',
+        'testset': b'tests',
+        'testIndex': b'1',
+        'testInput': b'100\n',
+        'testGroup': b'',
+        'testPoints': b'0.0',
+        'testUseInStatements': b'true',
+        'testInteractionLogForStatements': '> 100\n< 50\n> больше\n'.encode('utf-8'),
+    })
