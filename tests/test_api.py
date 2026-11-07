@@ -3641,3 +3641,32 @@ class TestManualTestSavePoints:
         test.points = 3
         test.save()
         assert _sent_args(calls)[b'testPoints'] == b'3'
+
+
+class TestSaveTags:
+    """
+    problem.saveTags takes the tags as one comma-separated string. Joining whatever was passed with
+    ','.join split a string into its characters, so save_tags('dp,greedy') sent 'd,p,,,g,r,e,e,d,y'
+    and Polygon rejected it: "Tag should have length between 2 and 32".
+    """
+
+    URL = 'https://example.invalid/api/problem.saveTags'
+
+    @pytest.mark.parametrize('tags', [['dp', 'greedy'], ('dp', 'greedy'), 'dp,greedy'],
+                             ids=['list', 'tuple', 'string'])
+    def test_the_tags_are_sent_comma_separated(self, polygon, monkeypatch, tags):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_tags(1, tags)
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'tags'] == b'dp,greedy'
+
+    def test_a_single_tag_string_is_sent_as_it_is(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        polygon.problem_save_tags(1, 'dp')
+        assert _sent_args(calls)[b'tags'] == b'dp'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        problem.save_tags('math,implementation')
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'tags'] == b'math,implementation'
