@@ -1792,6 +1792,13 @@ class Test:
         """
         return self.pin if pin is None else pin
 
+    @staticmethod
+    def _points_from_json(test_json):
+        # Polygon leaves points out while test points are disabled for the problem, and rejects any
+        # testPoints then, even 0, so an absent value stays None and ManualTest.save doesn't send it.
+        points = test_json.get(Test._POINTS, None)
+        return None if points is None else float(points)
+
 
 class ManualTest(Test):
 
@@ -1806,7 +1813,7 @@ class ManualTest(Test):
             input=test_json.get(Test._INPUT, None),
             input_bytes=None if input_base64 is None else base64.b64decode(input_base64),
             group=test_json.get(Test._GROUP, ""),
-            points=float(test_json.get(Test._POINTS, "0")),
+            points=Test._points_from_json(test_json),
             description=test_json.get(Test._DESCRIPTION, None),
             use_in_statements=test_json[Test._USE_IN_STATEMENTS],
             input_for_statements=test_json.get(Test._INPUT_FOR_STATEMENTS, None),
@@ -1844,7 +1851,7 @@ class GeneratedTest(Test):
             testset=testset,
             index=int(test_json[Test._INDEX]),
             group=test_json.get(Test._GROUP, ""),
-            points=float(test_json.get(Test._POINTS, "0")),
+            points=Test._points_from_json(test_json),
             description=test_json.get(Test._DESCRIPTION, None),
             use_in_statements=test_json[Test._USE_IN_STATEMENTS],
             script_line=test_json[Test._SCRIPT_LINE],

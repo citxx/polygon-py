@@ -1121,7 +1121,11 @@ def test_save_test_sends_a_multiline_interaction_log_as_utf8(local_api_endpoint,
 
 
 def test_an_interaction_log_read_from_tests_is_saved_back(local_api_endpoint, polygon):
-    """problem.tests returns the log of a manual test, and saving the test sends it back unchanged."""
+    """
+    problem.tests returns the log of a manual test, and saving the test sends it back unchanged.
+    Test points are disabled for the problem, so problem.tests leaves them out and the save must not
+    send testPoints, which Polygon would reject.
+    """
     local_api_endpoint.enqueue_response(
         ('{"status":"OK","result":[{"index":1,"manual":true,"input":"100\\n","useInStatements":true,'
          '"interactionLogForStatement":"> 100\\n< 50\\n> больше\\n"}]}').encode('utf-8'),
@@ -1144,7 +1148,6 @@ def test_an_interaction_log_read_from_tests_is_saved_back(local_api_endpoint, po
         'testIndex': b'1',
         'testInput': b'100\n',
         'testGroup': b'',
-        'testPoints': b'0.0',
         'testUseInStatements': b'true',
         'testInteractionLogForStatements': '> 100\n< 50\n> больше\n'.encode('utf-8'),
     })
