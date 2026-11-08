@@ -19,6 +19,10 @@ from .api import (
     SolutionTags,
     InvocationRun,
     InvocationResults,
+    Stress,
+    StressRun,
+    StressCountertest,
+    StressSolutionReport,
     Solution,
     File,
     ResourceAdvancedProperties,
@@ -60,7 +64,10 @@ from .api import (
     MaterialPublishStrategy,
     MaterialItemType,
     InvocationStatus,
-    InvocationRunVerdict
+    InvocationRunVerdict,
+    StressRunStatus,
+    StressRunVerdict,
+    StressSolutionVerdict
 )
 
 __version__ = "1.4.0"
