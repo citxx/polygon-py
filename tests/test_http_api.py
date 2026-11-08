@@ -1151,3 +1151,18 @@ def test_an_interaction_log_read_from_tests_is_saved_back(local_api_endpoint, po
         'testUseInStatements': b'true',
         'testInteractionLogForStatements': '> 100\n< 50\n> больше\n'.encode('utf-8'),
     })
+
+
+def test_save_tags_sends_a_comma_separated_string_unchanged(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    polygon.problem_save_tags(PROBLEM_ID, 'dp,greedy')
+
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.saveTags', {
+        'problemId': b'42',
+        'tags': b'dp,greedy',
+    })
