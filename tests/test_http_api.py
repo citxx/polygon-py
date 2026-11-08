@@ -1018,3 +1018,78 @@ def test_add_stress_countertest_returns_the_added_test(local_api_endpoint, polyg
         'stressIndex': b'1',
         'testset': b'tests',
     })
+
+
+def test_info_of_an_interactive_problem_round_trips_through_update_info(local_api_endpoint, polygon):
+    """
+    problem.info of an interactive problem run twice, read and sent back with one flag changed:
+    every flag has to come back under its documented name, so the update keeps the others as
+    they were.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":{"inputFile":"stdin","outputFile":"stdout","interactive":true,'
+        b'"useInteractionLogInExampleTests":true,"wellFormed":true,"skipDuplicatedTestsValidation":false,'
+        b'"runTwice":true,"interactiveSecondRun":false,"timeLimit":2000,"memoryLimit":256}}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":null}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    info = polygon.problem_info(PROBLEM_ID)
+    assert (info.use_interaction_log_in_example_tests, info.run_twice, info.interactive_second_run) == (
+        True, True, False)
+    info.interactive_second_run = True
+    polygon.problem_update_info(PROBLEM_ID, info)
+
+    info_request, update_request = local_api_endpoint.requests
+    _assert_signed_request(info_request, 'problem.info', {'problemId': b'42'})
+    _assert_signed_request(update_request, 'problem.updateInfo', {
+        'problemId': b'42',
+        'inputFile': b'stdin',
+        'outputFile': b'stdout',
+        'interactive': b'true',
+        'useInteractionLogInExampleTests': b'true',
+        'wellFormed': b'true',
+        'skipDuplicatedTestsValidation': b'false',
+        'runTwice': b'true',
+        'interactiveSecondRun': b'true',
+        'timeLimit': b'2000',
+        'memoryLimit': b'256',
+    })
+
+
+def test_info_of_an_interactive_problem_can_be_sent_back_with_interactive_switched_off(local_api_endpoint, polygon):
+    """
+    Polygon answers "Can't change useInteractionLogForExampleTests for a non-interactive problem"
+    with HTTP 400 when the interactive-only flags come with interactive=false, so they must stay
+    out of that request.
+    """
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":{"inputFile":"stdin","outputFile":"stdout","interactive":true,'
+        b'"useInteractionLogInExampleTests":true,"wellFormed":true,"skipDuplicatedTestsValidation":false,'
+        b'"runTwice":true,"interactiveSecondRun":true,"timeLimit":1000,"memoryLimit":256}}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":null}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    info = polygon.problem_info(PROBLEM_ID)
+    info.interactive = False
+    polygon.problem_update_info(PROBLEM_ID, info)
+
+    _, update_request = local_api_endpoint.requests
+    _assert_signed_request(update_request, 'problem.updateInfo', {
+        'problemId': b'42',
+        'inputFile': b'stdin',
+        'outputFile': b'stdout',
+        'interactive': b'false',
+        'wellFormed': b'true',
+        'skipDuplicatedTestsValidation': b'false',
+        'runTwice': b'true',
+        'timeLimit': b'1000',
+        'memoryLimit': b'256',
+    })
