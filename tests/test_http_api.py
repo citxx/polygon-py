@@ -952,3 +952,69 @@ def test_delete_stress_sends_the_index(local_api_endpoint, polygon):
         'problemId': b'42',
         'stressIndex': b'3',
     })
+
+
+def test_run_stresses_sends_the_indices_comma_separated(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_run_stresses(PROBLEM_ID, [1, 3])
+
+    assert result is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.runStresses', {
+        'problemId': b'42',
+        'stressIndices': b'1,3',
+    })
+
+
+def test_run_stresses_raises_on_the_http_400_for_a_locked_user(local_api_endpoint, polygon):
+    """The docs: a user locked because of the load on invokers gets FAILED, and nothing starts."""
+    local_api_endpoint.enqueue_response(
+        b'{"status":"FAILED","comment":"The problem is locked for you"}',
+        status=400,
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    with pytest.raises(PolygonRequestFailedException) as excinfo:
+        polygon.problem_run_stresses(PROBLEM_ID)
+
+    assert excinfo.value.comment == 'The problem is locked for you'
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.runStresses', {'problemId': b'42'})
+
+
+def test_cancel_stresses_without_indices_cancels_every_stress(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK"}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    result = polygon.problem_cancel_stresses(PROBLEM_ID)
+
+    assert result is None
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.cancelStresses', {'problemId': b'42'})
+
+
+def test_add_stress_countertest_returns_the_added_test(local_api_endpoint, polygon):
+    local_api_endpoint.enqueue_response(
+        b'{"status":"OK","result":{"index":5,"manual":false,"scriptLine":"gen 10 57 abacaba 2f8a91",'
+        b'"group":"small","description":"Added from stress #1","useInStatements":false}}',
+        headers={'Content-Type': 'application/json; charset=utf-8'},
+    )
+
+    test = polygon.problem_add_stress_countertest(PROBLEM_ID, 1, 'tests')
+
+    assert test.index == 5
+    assert test.script_line == 'gen 10 57 abacaba 2f8a91'
+    assert test.group == 'small'
+    assert test.use_in_statements is False
+    request, = local_api_endpoint.requests
+    _assert_signed_request(request, 'problem.addStressCountertest', {
+        'problemId': b'42',
+        'stressIndex': b'1',
+        'testset': b'tests',
+    })

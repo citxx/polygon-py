@@ -1581,6 +1581,8 @@ INVOCATION_RESULTS_RESULT = ('{"invocation": {"id": 501, "description": "", "tes
 STRESS_RESULT = ('{"index": 1, "scriptPattern": "gen [1..10]", "solutionNames": ["main.cpp", "wa.cpp"], '
                  '"timeLimit": 2000, "memoryLimit": 256, "totalTimeLimit": 60000, "ignoreValidators": false, '
                  '"description": ""}')
+ADDED_TEST_RESULT = ('{"index": 5, "manual": false, "scriptLine": "gen 10 57 abacaba 2f8a91", '
+                     '"description": "Added from stress #1", "useInStatements": false}')
 SOLUTIONS_ITEM = MaterialItem(MaterialItemType.SOLUTIONS, names=['main.cpp'])
 
 PIN_ROWS = [
@@ -1675,6 +1677,10 @@ PIN_ROWS = [
     PinRow('problem_stresses', (1,), 'stresses', (), EMPTY_LIST_RESULT),
     PinRow('problem_save_stress', (1, 1), 'save_stress', (1,), STRESS_RESULT),
     PinRow('problem_delete_stress', (1, 1), 'delete_stress', (1,), NULL_RESULT),
+    PinRow('problem_run_stresses', (1,), 'run_stresses', (), NULL_RESULT),
+    PinRow('problem_cancel_stresses', (1,), 'cancel_stresses', (), NULL_RESULT),
+    PinRow('problem_add_stress_countertest', (1, 1, 'tests'), 'add_stress_countertest', (1, 'tests'),
+           ADDED_TEST_RESULT),
 ]
 
 POLYGON_PIN_ROWS = [row for row in PIN_ROWS if row.polygon_method is not None]
@@ -3341,3 +3347,88 @@ class TestDeleteStress:
         problem.delete_stress(2)
         assert calls[-1]['url'] == self.URL
         assert _sent_args(calls)[b'stressIndex'] == b'2'
+
+
+@pytest.mark.parametrize('polygon_method, problem_method, api_method', [
+    ('problem_run_stresses', 'run_stresses', 'problem.runStresses'),
+    ('problem_cancel_stresses', 'cancel_stresses', 'problem.cancelStresses'),
+], ids=['run', 'cancel'])
+class TestRunAndCancelStresses:
+    """
+    problem.runStresses and problem.cancelStresses take the same optional comma-separated list of
+    indices, and act on every stress of the problem without it.
+    """
+
+    def test_every_stress_is_meant_without_indices(self, polygon, monkeypatch, polygon_method, problem_method,
+                                                   api_method):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        getattr(polygon, polygon_method)(1)
+        assert calls[-1]['url'] == 'https://example.invalid/api/' + api_method
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_a_list_of_indices_is_sent_comma_separated(self, polygon, monkeypatch, polygon_method, problem_method,
+                                                       api_method):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        getattr(polygon, polygon_method)(1, [1, 3])
+        assert _sent_args(calls)[b'stressIndices'] == b'1,3'
+
+    def test_a_string_of_indices_is_sent_as_it_is(self, polygon, monkeypatch, polygon_method, problem_method,
+                                                  api_method):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        getattr(polygon, polygon_method)(1, '2,4')
+        assert _sent_args(calls)[b'stressIndices'] == b'2,4'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch, polygon_method,
+                                                         problem_method, api_method):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        getattr(problem, problem_method)([2])
+        assert calls[-1]['url'] == 'https://example.invalid/api/' + api_method
+        assert _sent_args(calls)[b'stressIndices'] == b'2'
+
+
+class TestAddStressCountertest:
+    """problem.addStressCountertest adds the countertest of a stress to a testset and returns the test."""
+
+    URL = 'https://example.invalid/api/problem.addStressCountertest'
+
+    def test_the_index_and_the_testset_are_sent_under_their_documented_names(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ADDED_TEST_RESULT))
+        polygon.problem_add_stress_countertest(1, 2, 'tests')
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert set(args) == {b'problemId', b'stressIndex', b'testset', b'apiKey', b'time', b'apiSig'}
+        assert args[b'stressIndex'] == b'2'
+        assert args[b'testset'] == b'tests'
+
+    def test_a_generated_test_is_returned(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(ADDED_TEST_RESULT))
+        test = polygon.problem_add_stress_countertest(1, 2, 'tests')
+        assert isinstance(test, api.GeneratedTest)
+        assert test.index == 5
+        assert test.testset == 'tests'
+        assert test.script_line == 'gen 10 57 abacaba 2f8a91'
+        assert test.description == 'Added from stress #1'
+
+    def test_a_small_input_comes_back_as_a_manual_test(self, polygon, monkeypatch):
+        """The docs: a small generated input may be stored as a manual test."""
+        _install_fake_post(monkeypatch, text=_ok_body(
+            '{"index": 5, "manual": true, "input": "57\\n", "useInStatements": false}'))
+        test = polygon.problem_add_stress_countertest(1, 2, 'tests')
+        assert isinstance(test, ManualTest)
+        assert test.input == '57\n'
+
+    def test_the_pin_is_kept_on_the_returned_test(self, polygon, monkeypatch):
+        """Like the tests of problem.tests, the added test sends the same pin when it is saved."""
+        _install_fake_post(monkeypatch, text=_ok_body(ADDED_TEST_RESULT))
+        assert polygon.problem_add_stress_countertest(1, 2, 'tests', pin='1234').pin == '1234'
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(ADDED_TEST_RESULT))
+        problem.pin = '1234'
+        test = problem.add_stress_countertest(2, 'samples')
+        assert test.testset == 'samples'
+        assert test.pin == '1234'
+        assert calls[-1]['url'] == self.URL
+        args = _sent_args(calls)
+        assert args[b'stressIndex'] == b'2'
+        assert args[b'testset'] == b'samples'
