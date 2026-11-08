@@ -3553,3 +3553,57 @@ class TestSaveTestInteractionLog:
         args = _sent_args(calls)
         assert args[b'testInteractionLogForStatements'] == b'> 3\n< 7\n'
         assert args[b'checkExisting'] == b'true'
+
+
+class TestInteractionLogForStatements:
+    """
+    problem.tests returns the interaction log shown in the statements next to the input and output
+    for statements, and ManualTest.save has to send it back, or a log changed on a test read from
+    Polygon would be silently ignored.
+    """
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '3\n', 'useInStatements': True},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 3', 'useInStatements': True},
+    ], ids=['manual', 'generated'])
+    def test_the_log_is_parsed(self, polygon, test_json):
+        test = api.Test.from_json(polygon, 1, 'tests', dict(test_json, interactionLogForStatement='> 3\n< 7\n'))
+        assert test.interaction_log_for_statements == '> 3\n< 7\n'
+
+    @pytest.mark.parametrize('test_json', [
+        {'index': 1, 'manual': True, 'input': '3\n', 'useInStatements': True},
+        {'index': 1, 'manual': False, 'scriptLine': 'gen 3', 'useInStatements': True},
+    ], ids=['manual', 'generated'])
+    def test_an_absent_log_is_none(self, polygon, test_json):
+        assert api.Test.from_json(polygon, 1, 'tests', test_json).interaction_log_for_statements is None
+
+    def test_save_sends_the_log(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        test = api.Test.from_json(polygon, 1, 'tests', {
+            'index': 2, 'manual': True, 'input': '3\n', 'useInStatements': True,
+            'interactionLogForStatement': '> 3\n< 7\n',
+        })
+        test.interaction_log_for_statements = '> 3\n< 8\n'
+        test.save()
+        assert calls[-1]['url'] == 'https://example.invalid/api/problem.saveTest'
+        assert _sent_args(calls)[b'testInteractionLogForStatements'] == b'> 3\n< 8\n'
+
+    def test_save_omits_the_log_when_there_is_none(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=OK_JSON_BODY)
+        api.Test.from_json(polygon, 1, 'tests', {'index': 2, 'manual': True, 'input': '3\n',
+                                                 'useInStatements': False}).save()
+        assert b'testInteractionLogForStatements' not in _sent_args(calls)
+
+    def test_pin_stays_the_last_constructor_argument(self, polygon):
+        """pin is the last argument everywhere in the wrapper, so the log comes right before it."""
+        for cls in (api.Test, ManualTest, api.GeneratedTest):
+            parameters = list(inspect.signature(cls.__init__).parameters)
+            assert parameters[-2:] == ['interaction_log_for_statements', 'pin'], cls.__name__
+
+    def test_the_log_and_the_pin_reach_their_attributes(self, polygon):
+        manual = ManualTest(polygon, 1, 'tests', 3, '3\n', interaction_log_for_statements='> 3\n', pin='1234')
+        generated = api.GeneratedTest(polygon, 1, 'tests', 3, '', None, None, False, 'gen 3', None, None, None,
+                                      interaction_log_for_statements='> 3\n', pin='1234')
+        for test in (manual, generated):
+            assert test.interaction_log_for_statements == '> 3\n'
+            assert test.pin == '1234'
