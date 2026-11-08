@@ -15,6 +15,10 @@ from .api import (
     MaterialItem,
     MaterialTest,
     Package,
+    Invocation,
+    SolutionTags,
+    InvocationRun,
+    InvocationResults,
     Solution,
     File,
     ResourceAdvancedProperties,
@@ -54,7 +58,9 @@ from .api import (
     IssueType,
     IssueStatus,
     MaterialPublishStrategy,
-    MaterialItemType
+    MaterialItemType,
+    InvocationStatus,
+    InvocationRunVerdict
 )
 
 __version__ = "1.4.0"

@@ -24,6 +24,11 @@ from polygon_api import (
     DeleteTestsResult,
     File,
     FileType,
+    Invocation,
+    InvocationResults,
+    InvocationRun,
+    InvocationRunVerdict,
+    InvocationStatus,
     Issue,
     IssueComment,
     IssueStatus,
@@ -50,6 +55,7 @@ from polygon_api import (
     RenderStatus,
     RenderedStatement,
     SolutionTag,
+    SolutionTags,
     SourceAiTip,
     Statement,
     StatementAiTip,
@@ -1562,6 +1568,9 @@ RENDER_STATEMENTS_RESULT = ('{"revision": 7, "renderingTimeSeconds": 1756600000,
                             '"pdf": {"status": "FAILED", "message": "LaTeX error"}}], '
                             '"tutorials": []}' % ('a' * 64))
 
+INVOCATION_RESULTS_RESULT = ('{"invocation": {"id": 501, "description": "", "testset": "tests", '
+                             '"status": "PENDING", "creationTimeSeconds": 1790000000, "violateTag": false, '
+                             '"solutions": [], "tests": []}, "solutionTags": [], "runs": []}')
 SOLUTIONS_ITEM = MaterialItem(MaterialItemType.SOLUTIONS, names=['main.cpp'])
 
 PIN_ROWS = [
@@ -1651,6 +1660,8 @@ PIN_ROWS = [
     PinRow('problem_packages', (1,), 'packages', (), EMPTY_LIST_RESULT),
     PinRow('problem_package', (1, 2), 'package', (2,), NULL_RESULT),
     PinRow('problem_build_package', (1, True, False), 'build_package', (True, False), NULL_RESULT),
+    PinRow('problem_invocations', (1,), 'invocations', (), EMPTY_LIST_RESULT),
+    PinRow('problem_invocation', (1, 501), 'invocation', (501,), INVOCATION_RESULTS_RESULT),
 ]
 
 POLYGON_PIN_ROWS = [row for row in PIN_ROWS if row.polygon_method is not None]
@@ -2874,3 +2885,184 @@ class TestSetMaterial:
         assert args[b'originalName'] == b'old'
         assert args[b'publishStrategy'] == b'WITH_TUTORIAL'
         assert args[b'items'] == b'[{"type":"SOLUTIONS","names":["main.cpp"]}]'
+
+
+INVOCATION_JSON = {
+    'id': 501,
+    'description': 'Package #12 verification',
+    'testset': 'tests',
+    'status': 'FINISHED',
+    'creationTimeSeconds': 1790000000,
+    'packageId': 12,
+    'violateTag': True,
+    'solutions': ['main.cpp', 'wa.cpp'],
+    'tests': [1, 2],
+}
+
+RUN_JSON = {
+    'id': 9001,
+    'solution': 'wa.cpp',
+    'test': 2,
+    'verdict': 'WA',
+    'timeMillis': 15,
+    'memoryBytes': 2097152,
+    'points': 0.5,
+    'comment': 'wrong answer expected 13, found 12',
+    'violateTag': False,
+}
+
+
+class TestInvocationParsing:
+    def test_an_invocation_keeps_every_field(self):
+        invocation = Invocation.from_json(INVOCATION_JSON)
+        assert invocation.id == 501
+        assert invocation.description == 'Package #12 verification'
+        assert invocation.testset == 'tests'
+        assert invocation.status == InvocationStatus.FINISHED
+        assert invocation.creation_time_seconds == 1790000000
+        assert invocation.package_id == 12
+        assert invocation.violate_tag is True
+        assert invocation.solutions == ['main.cpp', 'wa.cpp']
+        assert invocation.tests == [1, 2]
+
+    def test_an_invocation_from_the_invocations_page_has_no_package(self):
+        json_without_package = {key: value for key, value in INVOCATION_JSON.items() if key != 'packageId'}
+        assert Invocation.from_json(json_without_package).package_id is None
+
+    @pytest.mark.parametrize('status', list(InvocationStatus))
+    def test_every_status_is_parsed(self, status):
+        assert Invocation.from_json(dict(INVOCATION_JSON, status=status.name)).status == status
+
+
+class TestSolutionTagsParsing:
+    def test_the_tag_and_the_extra_tags_are_parsed_into_solution_tags(self):
+        tags = SolutionTags.from_json({
+            'name': 'slow.cpp',
+            'tag': 'TL',
+            'testsetTags': {'samples': 'OK'},
+            'groupTags': {'subtask1': 'OK', 'subtask2': 'TO'},
+        })
+        assert tags.name == 'slow.cpp'
+        assert tags.tag == SolutionTag.TL
+        assert tags.testset_tags == {'samples': SolutionTag.OK}
+        assert tags.group_tags == {'subtask1': SolutionTag.OK, 'subtask2': SolutionTag.TO}
+
+    def test_absent_fields_read_as_no_tag_and_no_extra_tags(self):
+        """The docs: tag may be absent, and the mappings are left out when there are none."""
+        tags = SolutionTags.from_json({'name': 'main.cpp'})
+        assert tags.tag is None
+        assert tags.testset_tags == {}
+        assert tags.group_tags == {}
+
+    def test_construction_without_extra_tags_gives_empty_mappings(self):
+        tags = SolutionTags('main.cpp', SolutionTag.MA)
+        assert tags.testset_tags == {}
+        assert tags.group_tags == {}
+        assert SolutionTags('a.cpp').testset_tags is not tags.testset_tags
+
+
+class TestInvocationRunParsing:
+    def test_a_run_keeps_every_field(self):
+        run = InvocationRun.from_json(RUN_JSON)
+        assert run.id == 9001
+        assert run.solution == 'wa.cpp'
+        assert run.test == 2
+        assert run.verdict == InvocationRunVerdict.WA
+        assert run.time_millis == 15
+        assert run.memory_bytes == 2097152
+        assert run.points == 0.5
+        assert run.comment == 'wrong answer expected 13, found 12'
+        assert run.violate_tag is False
+
+    def test_a_waiting_run_has_no_measurements(self):
+        """The docs: time and memory are present only for OK/WA/PE/TL/ML/IL/RE."""
+        run = InvocationRun.from_json({'id': 9002, 'test': 1, 'verdict': 'NO', 'violateTag': False})
+        assert run.verdict == InvocationRunVerdict.NO
+        assert run.solution is None
+        assert run.time_millis is None
+        assert run.memory_bytes is None
+        assert run.points is None
+        assert run.comment is None
+
+    @pytest.mark.parametrize('points', [3, '2.5'])
+    def test_points_are_read_as_a_float(self, points):
+        assert InvocationRun.from_json(dict(RUN_JSON, points=points)).points == float(points)
+
+    @pytest.mark.parametrize('verdict', list(InvocationRunVerdict))
+    def test_every_verdict_is_parsed(self, verdict):
+        assert InvocationRun.from_json(dict(RUN_JSON, verdict=verdict.name)).verdict == verdict
+
+
+class TestInvocationResultsParsing:
+    def test_the_invocation_tags_and_runs_are_parsed(self):
+        results = InvocationResults.from_json({
+            'invocation': INVOCATION_JSON,
+            'solutionTags': [{'name': 'main.cpp', 'tag': 'MA'}, {'name': 'wa.cpp', 'tag': 'WA'}],
+            'runs': [dict(RUN_JSON, id=1, test=1, verdict='OK'), RUN_JSON],
+        })
+        assert isinstance(results.invocation, Invocation)
+        assert results.invocation.id == 501
+        assert [tags.tag for tags in results.solution_tags] == [SolutionTag.MA, SolutionTag.WA]
+        assert [run.id for run in results.runs] == [1, 9001]
+
+    def test_an_invocation_without_runs_yet(self):
+        results = InvocationResults.from_json(json.loads(INVOCATION_RESULTS_RESULT))
+        assert results.invocation.status == InvocationStatus.PENDING
+        assert results.solution_tags == []
+        assert results.runs == []
+
+
+class TestInvocations:
+    """problem.invocations takes an optional package id and returns the invocations, the newest first."""
+
+    URL = 'https://example.invalid/api/problem.invocations'
+
+    def test_only_the_problem_id_is_sent_without_a_package(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        polygon.problem_invocations(1)
+        assert calls[-1]['url'] == self.URL
+        assert set(_sent_args(calls)) == {b'problemId', b'apiKey', b'time', b'apiSig'}
+
+    def test_the_package_id_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(EMPTY_LIST_RESULT))
+        polygon.problem_invocations(1, package_id=12)
+        assert _sent_args(calls)[b'packageId'] == b'12'
+
+    def test_every_invocation_is_parsed_into_an_invocation(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(json.dumps([INVOCATION_JSON, dict(INVOCATION_JSON, id=500)])))
+        invocations = polygon.problem_invocations(1)
+        assert [type(invocation) for invocation in invocations] == [Invocation] * 2
+        assert [invocation.id for invocation in invocations] == [501, 500]
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(json.dumps([INVOCATION_JSON])))
+        invocation, = problem.invocations(package_id=12)
+        assert invocation.id == 501
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'packageId'] == b'12'
+
+
+class TestInvocation:
+    """problem.invocation takes an invocation id and returns the invocation with its stored runs."""
+
+    URL = 'https://example.invalid/api/problem.invocation'
+
+    def test_the_invocation_id_is_sent_under_its_documented_name(self, polygon, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(INVOCATION_RESULTS_RESULT))
+        polygon.problem_invocation(1, 501)
+        assert calls[-1]['url'] == self.URL
+        assert set(_sent_args(calls)) == {b'problemId', b'invocationId', b'apiKey', b'time', b'apiSig'}
+        assert _sent_args(calls)[b'invocationId'] == b'501'
+
+    def test_the_result_is_parsed_into_invocation_results(self, polygon, monkeypatch):
+        _install_fake_post(monkeypatch, text=_ok_body(INVOCATION_RESULTS_RESULT))
+        results = polygon.problem_invocation(1, 501)
+        assert isinstance(results, InvocationResults)
+        assert results.invocation.id == 501
+
+    def test_the_problem_shortcut_sends_the_same_request(self, problem, monkeypatch):
+        calls = _install_fake_post(monkeypatch, text=_ok_body(INVOCATION_RESULTS_RESULT))
+        results = problem.invocation(501)
+        assert results.invocation.id == 501
+        assert calls[-1]['url'] == self.URL
+        assert _sent_args(calls)[b'invocationId'] == b'501'
